@@ -48,18 +48,31 @@ serve(async (req) => {
 
     const tokenData: LinkedInTokenResponse = await tokenResponse.json();
 
-    // Fetch profile
-    const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+    // Fetch profile using LinkedIn v2 API
+    const profileRes = await fetch('https://api.linkedin.com/v2/me', {
       headers: { 
         Authorization: `Bearer ${tokenData.access_token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0'
       },
     });
     if (!profileRes.ok) throw new Error(`Profile fetch failed: ${await profileRes.text()}`);
     const profile = await profileRes.json();
 
-    // Email is now included in the userinfo response
-    const email = profile.email || '';
+    // Fetch email separately
+    const emailRes = await fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+      headers: { 
+        Authorization: `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0'
+      },
+    });
+    
+    let email = '';
+    if (emailRes.ok) {
+      const emailData = await emailRes.json();
+      email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
+    }
 
     // Upsert into Supabase users table
     const { data, error } = await supabase
@@ -86,8 +99,8 @@ serve(async (req) => {
         expires_in: tokenData.expires_in,
         user_data: {
           id: profile.id,
-          firstName: profile.given_name || profile.name?.split(' ')[0] || '',
-          lastName: profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '',
+          firstName: profile.localizedFirstName || '',
+          lastName: profile.localizedLastName || '',
           email,
         },
         supabase_user: data[0],

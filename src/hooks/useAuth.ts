@@ -61,7 +61,7 @@ export const useAuthProvider = () => {
   const signInWithLinkedIn = () => {
     const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
     const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
-    const scope = 'openid profile email w_member_social';
+    const scope = 'r_liteprofile r_emailaddress w_member_social';
     const state = crypto.randomUUID(); // unique for CSRF protection
 
     // Save state for callback verification
