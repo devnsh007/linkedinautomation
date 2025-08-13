@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { LinkedInAPI } from '../lib/linkedin';
 import { useAuth } from '../hooks/useAuth';
 
 export const LinkedInCallback: React.FC = () => {
@@ -37,10 +36,13 @@ export const LinkedInCallback: React.FC = () => {
 
       setStatus('Exchanging authorization code for token...');
 
-      // Call your Supabase Edge Function or backend API
-      const response = await fetch('/api/auth/linkedin/callback', {
+      // Call Supabase Edge Function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkedin-auth`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
         body: JSON.stringify({
           code,
           redirect_uri: import.meta.env.VITE_LINKEDIN_REDIRECT_URI
@@ -56,8 +58,14 @@ export const LinkedInCallback: React.FC = () => {
       if (!access_token) throw new Error('No access token received from LinkedIn');
 
       setStatus('Fetching LinkedIn profile...');
-      const linkedInAPI = new LinkedInAPI(access_token);
-      const profileData = await linkedInAPI.getProfile();
+      
+      // Profile data is already included in the response from our edge function
+      const profileData = {
+        id: user_data.id,
+        firstName: user_data.firstName,
+        lastName: user_data.lastName,
+        email: user_data.email
+      };
 
       setStatus('Signing in/up user...');
 
@@ -69,36 +77,33 @@ export const LinkedInCallback: React.FC = () => {
 
       if (authError && authError.message.includes('Invalid login credentials')) {
         // Sign up new user
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: user_data.email,
           password: user_data.id,
           options: {
             data: {
               linkedin_id: user_data.id,
-              full_name: `${profileData.firstName} ${profileData.lastName}`
+              full_name: `${user_data.firstName} ${user_data.lastName}`
             }
           }
         });
         if (signUpError) throw signUpError;
+        
+        // For new signups, we need to sign in manually
+        if (signUpData.user && !signUpData.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: user_data.email,
+            password: user_data.id
+          });
+          if (signInError) throw signInError;
+        }
       } else if (authError) {
         throw authError;
       }
 
-      // Store LinkedIn profile + tokens
-      const { error: updateError } = await supabase
-        .from('users')
-        .upsert({
-          email: user_data.email,
-          linkedin_id: user_data.id,
-          linkedin_access_token: access_token,
-          linkedin_refresh_token: refresh_token,
-          profile_data: profileData,
-          updated_at: new Date().toISOString()
-        });
-
-      if (updateError) throw updateError;
-
+      // The edge function already stored the user data, so we just need to set the profile
       setLinkedInProfile(profileData);
+
       setStatus('Authentication successful! Redirecting...');
       navigate('/dashboard', { replace: true });
 

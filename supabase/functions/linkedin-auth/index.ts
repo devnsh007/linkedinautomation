@@ -49,20 +49,17 @@ serve(async (req) => {
     const tokenData: LinkedInTokenResponse = await tokenResponse.json();
 
     // Fetch profile
-    const profileRes = await fetch('https://api.linkedin.com/v2/me', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { 
+        Authorization: `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      },
     });
     if (!profileRes.ok) throw new Error(`Profile fetch failed: ${await profileRes.text()}`);
     const profile = await profileRes.json();
 
-    // Fetch email
-    const emailRes = await fetch(
-      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
-      { headers: { Authorization: `Bearer ${tokenData.access_token}` } }
-    );
-    if (!emailRes.ok) throw new Error(`Email fetch failed: ${await emailRes.text()}`);
-    const emailData = await emailRes.json();
-    const email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
+    // Email is now included in the userinfo response
+    const email = profile.email || '';
 
     // Upsert into Supabase users table
     const { data, error } = await supabase
@@ -89,8 +86,8 @@ serve(async (req) => {
         expires_in: tokenData.expires_in,
         user_data: {
           id: profile.id,
-          firstName: profile.localizedFirstName,
-          lastName: profile.localizedLastName,
+          firstName: profile.given_name || profile.name?.split(' ')[0] || '',
+          lastName: profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '',
           email,
         },
         supabase_user: data[0],
