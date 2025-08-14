@@ -46,8 +46,8 @@ export default {
           grant_type: "authorization_code",
           code,
           redirect_uri: redirectUri,
-          client_id: env.LINKEDIN_CLIENT_ID,
-          client_secret: env.LINKEDIN_CLIENT_SECRET,
+          client_id: Deno.env.get('LINKEDIN_CLIENT_ID'),
+          client_secret: Deno.env.get('LINKEDIN_CLIENT_SECRET'),
         }),
       });
 
