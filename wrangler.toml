@@ -1,3 +1,5 @@
 name = "linkedinautomation"
 main = "src/index.ts"
 compatibility_date = "2025-08-14"
+VITE_LINKEDIN_CLIENT_ID="775lulton4hxz4"
+LINKEDIN_CLIENT_SECRET="WPL_AP1.4M0pOUoYGfvbgAgc.EzehQg=="
