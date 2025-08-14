@@ -37,7 +37,7 @@ export const LinkedInCallback: React.FC = () => {
       setStatus('Exchanging authorization code for token...');
 
       // Call Supabase Edge Function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkedin-auth`, {
+      const response = await fetch(`${https://mukcatzdfbtvzptaxbnc.supabase.co/functions/v1/linkedin-auth`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
