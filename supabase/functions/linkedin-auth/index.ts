@@ -21,22 +21,24 @@ serve(async (req) => {
 
   try {
     const { code, redirect_uri } = await req.json();
-    if (!code || !redirect_uri) throw new Error('Missing required parameters');
+    if (!code || !redirect_uri) {
+      throw new Error('Missing required parameters: code or redirect_uri');
+    }
 
-    // Supabase client (service role for insert/update)
+    // Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Exchange code for LinkedIn token
+    // Exchange authorization code for token
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: redirect_uri,
+        code,
+        redirect_uri,
         client_id: Deno.env.get('LINKEDIN_CLIENT_ID')!,
         client_secret: Deno.env.get('LINKEDIN_CLIENT_SECRET')!,
       }),
@@ -45,34 +47,34 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       throw new Error(`Token exchange failed: ${await tokenResponse.text()}`);
     }
-
     const tokenData: LinkedInTokenResponse = await tokenResponse.json();
 
-    // Fetch profile using LinkedIn v2 API
-    const profileRes = await fetch('https://api.linkedin.com/v2/people/~', {
-      headers: { 
-        Authorization: `Bearer ${tokenData.access_token}`,
-        'Content-Type': 'application/json'
-      },
-    });
-    if (!profileRes.ok) throw new Error(`Profile fetch failed: ${await profileRes.text()}`);
+    // Fetch basic profile (new API)
+    const profileRes = await fetch(
+      'https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
+      {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      }
+    );
+    if (!profileRes.ok) {
+      throw new Error(`Profile fetch failed: ${await profileRes.text()}`);
+    }
     const profile = await profileRes.json();
 
-    // Fetch email separately
-    const emailRes = await fetch('https://api.linkedin.com/v2/people/~/emailAddress', {
-      headers: { 
-        Authorization: `Bearer ${tokenData.access_token}`,
-        'Content-Type': 'application/json'
-      },
-    });
-    
+    // Fetch email (new API)
+    const emailRes = await fetch(
+      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
+      {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      }
+    );
     let email = '';
     if (emailRes.ok) {
       const emailData = await emailRes.json();
-      email = emailData.emailAddress || '';
+      email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
     }
 
-    // Upsert into Supabase users table
+    // Store or update in Supabase
     const { data, error } = await supabase
       .from('users')
       .upsert(
@@ -84,7 +86,7 @@ serve(async (req) => {
           profile_data: profile,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'email' } // prevents duplicates
+        { onConflict: 'email' }
       )
       .select();
 
