@@ -1,100 +1,80 @@
-// index.ts — LinkedIn → Supabase OAuth Worker
-
 export interface Env {
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
   LINKEDIN_CLIENT_ID: string;
   LINKEDIN_CLIENT_SECRET: string;
-  LINKEDIN_REDIRECT_URI: string; // e.g. "https://linkedin-oauth-worker.yourdomain.workers.dev/callback"
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string; // Service Role Key for admin actions
-  FRONTEND_REDIRECT_URL: string; // Where to send the user after login, e.g. "https://yourapp.com"
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
 
-    // Step 1 — Start LinkedIn login
-    if (url.pathname === "/login") {
+    if (url.pathname === "/auth/linkedin") {
+      // Step 1: Redirect to LinkedIn's OAuth
       const state = crypto.randomUUID();
-      const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${env.LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(
-        env.LINKEDIN_REDIRECT_URI
-      )}&scope=openid%20profile%20email&state=${state}`;
+      const redirectUri = `https://linkedinautomation.pages.dev/auth/linkedin/callback`;
+      const linkedInAuthUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");
+      linkedInAuthUrl.searchParams.set("response_type", "code");
+      linkedInAuthUrl.searchParams.set("client_id", env.LINKEDIN_CLIENT_ID);
+      linkedInAuthUrl.searchParams.set("redirect_uri", redirectUri);
+      linkedInAuthUrl.searchParams.set("scope", "openid profile email w_member_social");
+      linkedInAuthUrl.searchParams.set("state", state);
 
-      return Response.redirect(authUrl, 302);
+      return Response.redirect(linkedInAuthUrl.toString(), 302);
     }
 
-    // Step 2 — Handle LinkedIn callback
-    if (url.pathname === "/callback") {
+    if (url.pathname === "/auth/linkedin/callback") {
+      // Step 2: Handle LinkedIn redirect
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
 
       if (error) {
-        return new Response(`LinkedIn OAuth error: ${error}`, { status: 400 });
-      }
-      if (!code) {
-        return new Response("Missing code", { status: 400 });
+        return new Response(`LinkedIn Error: ${error}`, { status: 400 });
       }
 
-      // Step 3 — Exchange code for access token
-      const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+      if (!code) {
+        return new Response("Missing code parameter", { status: 400 });
+      }
+
+      const redirectUri = `https://linkedinautomation.pages.dev/auth/linkedin/callback`;
+
+      // Step 3: Exchange code for access token
+      const tokenResponse = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          redirect_uri: env.LINKEDIN_REDIRECT_URI,
+          redirect_uri: redirectUri,
           client_id: env.LINKEDIN_CLIENT_ID,
           client_secret: env.LINKEDIN_CLIENT_SECRET,
         }),
       });
 
-      if (!tokenRes.ok) {
-        const errText = await tokenRes.text();
-        return new Response(`Error getting token: ${errText}`, { status: 500 });
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.access_token) {
+        return new Response(JSON.stringify(tokenData), { status: 400 });
       }
 
-      const tokenData = await tokenRes.json();
-      const accessToken = tokenData.access_token;
-
-      // Step 4 — Get LinkedIn profile
-      const profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!profileRes.ok) {
-        return new Response("Failed to fetch LinkedIn profile", { status: 500 });
-      }
-
-      const profile = await profileRes.json();
-
-      // Step 5 — Create user in Supabase
-      const supabaseRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users`, {
+      // Step 4: Store token in Supabase
+      await fetch(`${env.SUPABASE_URL}/rest/v1/linkedin_tokens`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apiKey: env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "apikey": env.SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${env.SUPABASE_ANON_KEY}`,
+          "Prefer": "return=representation",
         },
         body: JSON.stringify({
-          email: profile.email,
-          user_metadata: {
-            name: profile.name,
-            picture: profile.picture,
-            linkedin_id: profile.sub,
-          },
+          access_token: tokenData.access_token,
+          expires_in: tokenData.expires_in,
+          created_at: new Date().toISOString(),
         }),
       });
 
-      if (!supabaseRes.ok) {
-        const errText = await supabaseRes.text();
-        return new Response(`Supabase error: ${errText}`, { status: 500 });
-      }
-
-      // Step 6 — Redirect to frontend
-      return Response.redirect(env.FRONTEND_REDIRECT_URL, 302);
+      return new Response("LinkedIn connected successfully! You can close this window.", { status: 200 });
     }
 
-    // Default route
-    return new Response("LinkedIn OAuth Worker running", { status: 200 });
-  },
+    return new Response("Not Found", { status: 404 });
+  }
 };
