@@ -90,6 +90,15 @@ export const LoginPage: React.FC = () => {
                 onClick={signInWithLinkedIn}
                 disabled={loading}
                 className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  console.log('LinkedIn login clicked');
+                  console.log('Environment variables:', {
+                    clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID,
+                    redirectUri: import.meta.env.VITE_LINKEDIN_REDIRECT_URI,
+                    supabaseUrl: import.meta.env.VITE_SUPABASE_URL
+                  });
+                  signInWithLinkedIn();
+                }}
               >
                 <Linkedin className="w-5 h-5" />
                 <span>

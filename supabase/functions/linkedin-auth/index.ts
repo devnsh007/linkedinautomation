@@ -49,29 +49,27 @@ serve(async (req) => {
     const tokenData: LinkedInTokenResponse = await tokenResponse.json();
 
     // Fetch profile using LinkedIn v2 API
-    const profileRes = await fetch('https://api.linkedin.com/v2/me', {
+    const profileRes = await fetch('https://api.linkedin.com/v2/people/~', {
       headers: { 
         Authorization: `Bearer ${tokenData.access_token}`,
-        'Content-Type': 'application/json',
-        'X-Restli-Protocol-Version': '2.0.0'
+        'Content-Type': 'application/json'
       },
     });
     if (!profileRes.ok) throw new Error(`Profile fetch failed: ${await profileRes.text()}`);
     const profile = await profileRes.json();
 
     // Fetch email separately
-    const emailRes = await fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+    const emailRes = await fetch('https://api.linkedin.com/v2/people/~/emailAddress', {
       headers: { 
         Authorization: `Bearer ${tokenData.access_token}`,
-        'Content-Type': 'application/json',
-        'X-Restli-Protocol-Version': '2.0.0'
+        'Content-Type': 'application/json'
       },
     });
     
     let email = '';
     if (emailRes.ok) {
       const emailData = await emailRes.json();
-      email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
+      email = emailData.emailAddress || '';
     }
 
     // Upsert into Supabase users table
