@@ -36,8 +36,11 @@ export const LinkedInCallback: React.FC = () => {
 
       setStatus('Exchanging authorization code for token...');
 
-      // Call Supabase Edge Function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkedin-auth`, {
+      // Call Supabase Edge Function with proper error handling
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/linkedin-auth`;
+      console.log('Calling edge function:', functionUrl);
+      
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -49,12 +52,18 @@ export const LinkedInCallback: React.FC = () => {
         })
       });
 
+      console.log('Edge function response status:', response.status);
+      console.log('Edge function response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const responseText = await response.text();
+      console.log('Edge function response text:', responseText);
+
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Token exchange failed: ${text}`);
+        throw new Error(`Token exchange failed: ${responseText}`);
       }
 
-      const { access_token, refresh_token, user_data } = await response.json();
+      const responseData = JSON.parse(responseText);
+      const { access_token, refresh_token, user_data } = responseData;
       if (!access_token) throw new Error('No access token received from LinkedIn');
 
       setStatus('Fetching LinkedIn profile...');
