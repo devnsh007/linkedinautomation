@@ -65,7 +65,7 @@ export const useAuthProvider = () => {
     // Correct LinkedIn scopes (must be space-separated, not comma-separated)
     // openid, profile, email: for identity
     // w_member_social: to post, comment, react on behalf of the user
-    const scope = 'openid profile email  ';
+    const scope = 'openid profile email ';
 
     const state = crypto.randomUUID(); // for CSRF protection
 
