@@ -1,90 +1,108 @@
-// linkedin-auth.ts
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { useState, useEffect, createContext, useContext } from 'react';
+import { supabase } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
-// CORS headers for API calls
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-
-const clientId = Deno.env.get("LINKEDIN_CLIENT_ID");
-const clientSecret = Deno.env.get("LINKEDIN_CLIENT_SECRET");
-const redirectUri = "https://linkedinautomation.pages.dev/auth/linkedin/callback";
-
-// Helper to handle CORS preflight
-function handleOptions(req: Request) {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-  return null;
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  signInWithLinkedIn: () => void;
+  signOut: () => Promise<void>;
+  linkedInProfile: any;
+  setLinkedInProfile: (profile: any) => void;
 }
 
-serve(async (req) => {
-  const preflight = handleOptions(req);
-  if (preflight) return preflight;
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-  const url = new URL(req.url);
-
-  if (url.pathname === "/auth/linkedin/login") {
-    // Step 1: Redirect to LinkedIn Auth Page
-    const scope = encodeURIComponent("openid profile email w_member_social");
-    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=${scope}`;
-
-    return new Response(JSON.stringify({ authUrl }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
+  return context;
+};
 
-  if (url.pathname === "/auth/linkedin/callback") {
-    // Step 2: Exchange authorization code for access token
-    const code = url.searchParams.get("code");
-    if (!code) {
-      return new Response(JSON.stringify({ error: "Missing code" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
-    }
+export const useAuthProvider = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [linkedInProfile, setLinkedInProfile] = useState<any>(null);
 
-    const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri,
-        client_id: clientId || "",
-        client_secret: clientSecret || "",
-      }),
+  useEffect(() => {
+    // Load initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) {
-      return new Response(JSON.stringify({ error: tokenData }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: tokenRes.status,
-      });
-    }
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
 
-    const accessToken = tokenData.access_token;
+        if (session?.user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('profile_data')
+            .eq('id', session.user.id)
+            .single();
 
-    // Step 3: Fetch OpenID Profile
-    const profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const profile = await profileRes.json();
-
-    // Step 4: Return access token + profile
-    return new Response(
-      JSON.stringify({ accessToken, profile }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          if (userData?.profile_data) {
+            setLinkedInProfile(userData.profile_data);
+          }
+        } else {
+          setLinkedInProfile(null);
+        }
+      }
     );
-  }
 
-  return new Response(JSON.stringify({ error: "Not found" }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-    status: 404,
-  });
-});
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signInWithLinkedIn = () => {
+    const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+    const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
+
+    // Correct LinkedIn scopes (must be space-separated, not comma-separated)
+    // openid, profile, email: for identity
+    // w_member_social: to post, comment, react on behalf of the user
+    const scope = 'openid profile email w_member_social';
+
+    const state = crypto.randomUUID(); // for CSRF protection
+
+    // Save state for callback verification
+    sessionStorage.setItem('linkedin_oauth_state', state);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope,
+      state
+    });
+
+    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+    console.log('LinkedIn Auth URL:', authUrl);
+    console.log('Client ID:', clientId);
+    console.log('Redirect URI:', redirectUri);
+    console.log('Scope:', scope);
+
+    // Full-page redirect (avoids popup blocking)
+    window.location.href = authUrl;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setLinkedInProfile(null);
+  };
+
+  return {
+    user,
+    loading,
+    signInWithLinkedIn,
+    signOut,
+    linkedInProfile,
+    setLinkedInProfile,
+  };
+};
+
+export { AuthContext };
