@@ -10,7 +10,7 @@ const corsHeaders = {
 
 const clientId = Deno.env.get("LINKEDIN_CLIENT_ID");
 const clientSecret = Deno.env.get("LINKEDIN_CLIENT_SECRET");
-const redirectUri = "https://yourdomain.com/auth/linkedin/callback";
+const redirectUri = "https://linkedinautomation.pages.dev/auth/linkedin/callback";
 
 // Helper to handle CORS preflight
 function handleOptions(req: Request) {
