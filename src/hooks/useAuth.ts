@@ -61,8 +61,10 @@ export const useAuthProvider = () => {
   const signInWithLinkedIn = () => {
     const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
     const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
-    const scope = 'profile email w_member_social';
-    const state = crypto.randomUUID(); // unique for CSRF protection
+
+    // LinkedIn recommended scopes
+    const scope = 'r_liteprofile r_emailaddress w_member_social';
+    const state = crypto.randomUUID(); // CSRF protection
 
     // Save state for callback verification
     sessionStorage.setItem('linkedin_oauth_state', state);
@@ -77,11 +79,8 @@ export const useAuthProvider = () => {
 
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
     console.log('LinkedIn Auth URL:', authUrl);
-    console.log('Client ID:', clientId);
-    console.log('Redirect URI:', redirectUri);
-    console.log('Scope:', scope);
-    
-    // Full-page redirect — avoids iframe / popup blocking issues
+
+    // Redirect to LinkedIn
     window.location.href = authUrl;
   };
 
