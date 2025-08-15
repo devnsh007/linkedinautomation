@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     // Fetch basic profile using the correct LinkedIn API
     const profileRes = await fetch(
-      'https://api.linkedin.com/v2/userinfo',
+      'https://api.linkedin.com/v2/me',
       {
         headers: { 
           'Authorization': `Bearer ${tokenData.access_token}`,
