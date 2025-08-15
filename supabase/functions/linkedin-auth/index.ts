@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       'https://api.linkedin.com/v2/userinfo',
       {
         headers: { 
-          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Authorization': `Bearer ${access_token}`,
           'X-Restli-Protocol-Version': '2.0.0'
         },
       }
