@@ -92,7 +92,7 @@ export class LinkedInAPI {
 export const generateLinkedInAuthUrl = (): string => {
   const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
   const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
-  const scope = 'r_liteprofile r_emailaddress ';
+  const scope = 'openid profile email r_liteprofile r_emailaddress ';
   const state = Math.random().toString(36).substring(7);
 
   const params = new URLSearchParams({
