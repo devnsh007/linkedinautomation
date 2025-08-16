@@ -117,10 +117,10 @@ Deno.serve(async (req) => {
       throw new Error('No access token received from LinkedIn');
     }
 
-    console.log('=== Fetching LinkedIn Profile ===');
+    console.log('=== Fetching LinkedIn Profile using OpenID Connect ===');
     
-    // Fetch user profile using LinkedIn v2 API
-    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~', {
+    // Use OpenID Connect userinfo endpoint instead of deprecated v2 API
+    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: { 
         'Authorization': `Bearer ${tokenData.access_token}`,
         'Accept': 'application/json'
@@ -149,44 +149,19 @@ Deno.serve(async (req) => {
     }
 
     console.log('Profile data received:', {
-      id: profileData.id,
-      firstName: profileData.localizedFirstName,
-      lastName: profileData.localizedLastName
+      sub: profileData.sub,
+      name: profileData.name,
+      given_name: profileData.given_name,
+      family_name: profileData.family_name,
+      email: profileData.email,
+      email_verified: profileData.email_verified
     });
 
-    console.log('=== Fetching LinkedIn Email ===');
-    
-    // Fetch email address
-    const emailResponse = await fetch('https://api.linkedin.com/v2/people/~/emailAddress?q=members&projection=(elements*(handle~))', {
-      headers: { 
-        'Authorization': `Bearer ${tokenData.access_token}`,
-        'Accept': 'application/json'
-      },
-    });
-    
-    console.log('Email response status:', emailResponse.status);
-    
-    let email = '';
-    if (emailResponse.ok) {
-      const emailResponseText = await emailResponse.text();
-      console.log('Email response body:', emailResponseText);
-      
-      try {
-        const emailData = JSON.parse(emailResponseText);
-        email = emailData.elements?.[0]?.['handle~']?.emailAddress || '';
-        console.log('Email extracted:', email ? 'Yes' : 'No');
-      } catch (emailParseError) {
-        console.warn('Failed to parse email response, using fallback:', emailParseError);
-      }
-    } else {
-      console.warn('Email fetch failed, using fallback');
-    }
-    
-    // Use LinkedIn ID as fallback email if no email found
-    if (!email) {
-      email = `${profileData.id}@linkedin.temp`;
-      console.log('Using fallback email:', email);
-    }
+    // Extract user information from OpenID Connect response
+    const email = profileData.email || `${profileData.sub}@linkedin.temp`;
+    const firstName = profileData.given_name || '';
+    const lastName = profileData.family_name || '';
+    const linkedinId = profileData.sub; // This is the LinkedIn user ID
 
     console.log('=== Storing User Data in Supabase ===');
 
@@ -197,7 +172,7 @@ Deno.serve(async (req) => {
     // Store or update in Supabase
     const userData = {
       email: email,
-      linkedin_id: profileData.id,
+      linkedin_id: linkedinId,
       linkedin_access_token: tokenData.access_token,
       linkedin_refresh_token: tokenData.refresh_token || null,
       profile_data: profileData,
@@ -228,10 +203,10 @@ Deno.serve(async (req) => {
       refresh_token: tokenData.refresh_token || null,
       expires_in: tokenData.expires_in,
       user_data: {
-        id: profileData.id,
-        firstName: profileData.localizedFirstName || '',
-        lastName: profileData.localizedLastName || '',
-        email,
+        id: linkedinId,
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
       },
       supabase_user: data?.[0],
     };
