@@ -153,7 +153,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4 p-3 bg-purple-50 rounded-lg">
               <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
-              <div className="flex-1"></div>
+              <div className="flex-1">
                 <p className="font-medium text-gray-900">Company Culture Update</p>
                 <p className="text-sm text-gray-600">Feb 1, 11:00 AM</p>
               </div>
