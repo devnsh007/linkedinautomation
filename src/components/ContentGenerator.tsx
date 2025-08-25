@@ -11,11 +11,10 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-
-// You need to install axios: npm install axios
-import axios from "axios";
+import { useAuth } from '../hooks/useAuth';
 
 export const ContentGenerator: React.FC = () => {
+  const { user } = useAuth();
   const [contentType, setContentType] = useState<
     "post" | "article" | "carousel"
   >("post");
@@ -25,6 +24,7 @@ export const ContentGenerator: React.FC = () => {
   const [topic, setTopic] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedData, setGeneratedData] = useState<any>(null);
 
   const contentTypes = [
     {
@@ -67,40 +67,44 @@ export const ContentGenerator: React.FC = () => {
     if (!topic.trim()) return;
 
     setIsGenerating(true);
+    setGeneratedContent("");
+    setGeneratedData(null);
 
     try {
-      const prompt = `Generate a LinkedIn ${contentType} about "${topic}" in a ${tone} tone.`;
-
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: "gpt-4o-mini", // use gpt-4o-mini or gpt-3.5-turbo
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a LinkedIn content generator. Create engaging posts, articles, or carousels tailored for LinkedIn.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          max_tokens: 800,
+      console.log('Calling content generator function...');
+      
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/content-generator`;
+      
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // set in .env
-            "Content-Type": "application/json",
-          },
-        }
-      );
+        body: JSON.stringify({
+          topic,
+          contentType,
+          tone
+        })
+      });
 
-      const text = response.data.choices[0].message.content;
-      setGeneratedContent(text);
+      console.log('Content generator response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Content generator error:', errorText);
+        throw new Error(`Content generation failed: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Generated content received:', data);
+      
+      setGeneratedData(data);
+      setGeneratedContent(data.content || 'No content generated');
+      
     } catch (error: any) {
-      console.error(error);
-      setGeneratedContent("❌ Failed to generate content. Please try again.");
+      console.error('Content generation error:', error);
+      setGeneratedContent(`❌ Failed to generate content: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -108,6 +112,19 @@ export const ContentGenerator: React.FC = () => {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedContent);
+  };
+  
+  const saveAsDraft = async () => {
+    if (!generatedData || !user) return;
+    
+    try {
+      // You can implement saving to Supabase here
+      console.log('Saving as draft...', generatedData);
+      alert('Draft saved successfully!');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert('Failed to save draft');
+    }
   };
 
   return (
@@ -280,13 +297,41 @@ export const ContentGenerator: React.FC = () => {
                 </pre>
               </div>
 
+              {generatedData && (
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Title:</span>
+                      <p className="text-gray-900">{generatedData.title}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Est. Engagement:</span>
+                      <p className="text-gray-900">{generatedData.estimatedEngagement}/10</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium text-gray-700">Hashtags:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {generatedData.hashtags?.map((hashtag: string, index: number) => (
+                          <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                            {hashtag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600">
                   {generatedContent.length} characters
                 </div>
                 <div className="flex items-center space-x-3">
-                  <button className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200">
-                    Edit
+                  <button 
+                    onClick={saveAsDraft}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+                  >
+                    Save as Draft
                   </button>
                   <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center space-x-2">
                     <Calendar className="w-4 h-4" />

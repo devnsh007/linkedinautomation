@@ -9,16 +9,19 @@ import {
   MessageCircle,
   Star
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 export const ProfileAnalysis: React.FC = () => {
+  const { linkedInProfile } = useAuth();
+  
   const profileData = {
-    name: "Sarah Johnson",
-    title: "Senior Marketing Director",
-    company: "TechFlow Inc.",
-    connections: 2847,
-    followers: 5621,
-    posts: 124,
-    engagement: 6.8
+    name: linkedInProfile ? `${linkedInProfile.firstName} ${linkedInProfile.lastName}` : "LinkedIn User",
+    title: linkedInProfile?.title || "Professional",
+    company: linkedInProfile?.company || "Company",
+    connections: linkedInProfile?.connections || 1250,
+    followers: linkedInProfile?.followers || 2800,
+    posts: linkedInProfile?.posts || 45,
+    engagement: linkedInProfile?.engagement || 6.8
   };
 
   const strengths = [

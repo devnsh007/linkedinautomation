@@ -9,8 +9,11 @@ import {
   Heart,
   Share
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 export const Dashboard: React.FC = () => {
+  const { linkedInProfile } = useAuth();
+
   const stats = [
     { label: 'Posts This Month', value: '24', change: '+12%', icon: FileText, color: 'blue' },
     { label: 'Total Impressions', value: '45.2K', change: '+18%', icon: Eye, color: 'green' },
@@ -45,12 +48,16 @@ export const Dashboard: React.FC = () => {
     }
   ];
 
+  const displayName = linkedInProfile ? 
+    `${linkedInProfile.firstName} ${linkedInProfile.lastName}` : 
+    'User';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here's your LinkedIn performance overview.</p>
+          <p className="text-gray-600 mt-1">Welcome back, {displayName}! Here's your LinkedIn performance overview.</p>
         </div>
         <div className="flex items-center space-x-3">
           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
