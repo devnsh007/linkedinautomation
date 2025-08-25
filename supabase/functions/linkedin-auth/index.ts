@@ -38,61 +38,39 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+    // Debug environment variables
     console.log('Environment variables check:', {
-      hasClientId: !!linkedinClientId,
-      hasClientSecret: !!linkedinClientSecret,
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceKey: !!supabaseServiceKey,
-      clientIdValue: linkedinClientId,
+      clientId: linkedinClientId ? `${linkedinClientId.substring(0, 6)}...` : 'undefined',
+      clientSecret: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : 'undefined',
       clientIdType: typeof linkedinClientId,
-      clientSecretValue: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : linkedinClientSecret,
-      clientSecretType: typeof linkedinClientSecret,
-      supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'undefined'
+      clientSecretType: typeof linkedinClientSecret
     });
 
-    // Check for missing, empty, or invalid string values
-    const isValidClientId = linkedinClientId && 
-                           linkedinClientId !== '' && 
-                           linkedinClientId !== 'false' && 
-                           linkedinClientId !== 'undefined' && 
-                           linkedinClientId !== 'null';
-    
-    const isValidClientSecret = linkedinClientSecret && 
-                               linkedinClientSecret !== '' && 
-                               linkedinClientSecret !== 'false' && 
-                               linkedinClientSecret !== 'undefined' && 
-                               linkedinClientSecret !== 'null';
-    
-    if (!isValidClientId || !isValidClientSecret) {
-      console.error('LinkedIn credentials validation failed');
-      console.error('All environment variables:', Object.fromEntries(
-        Object.entries(Deno.env.toObject()).filter(([key]) => 
-          key.startsWith('LINKEDIN_') || key.startsWith('SUPABASE_')
-        )
+    // Check if environment variables are missing (undefined)
+    if (!linkedinClientId || !linkedinClientSecret) {
+      console.error('Environment variables are undefined');
+      console.error('Available environment variables:', Object.keys(Deno.env.toObject()).filter(key => 
+        key.startsWith('LINKEDIN_') || key.startsWith('SUPABASE_')
       ));
+      
+      const isRedeployNeeded = !linkedinClientId && !linkedinClientSecret;
       
       return new Response(
         JSON.stringify({ 
-          error: 'LinkedIn credentials validation failed', 
-          message: `The environment variables are being read as invalid values. This usually indicates they weren't set properly in Supabase.`,
-          troubleshooting: [
-            '1. Go to Supabase Dashboard → Edge Functions → linkedin-auth → Settings',
-            '2. Click "Add Secret" for each variable',
-            '3. Set LINKEDIN_CLIENT_ID to your actual LinkedIn Client ID',
-            '4. Set LINKEDIN_CLIENT_SECRET to your actual LinkedIn Client Secret',
-            '5. Make sure to SAVE the changes',
-            '6. Redeploy the edge function if needed',
-            '7. Wait 1-2 minutes for changes to take effect'
+          error: 'Environment variables not found', 
+          message: `LinkedIn credentials are undefined. ${isRedeployNeeded ? 'This usually means the edge function needs to be redeployed after setting environment variables.' : ''}`,
+          action_required: isRedeployNeeded ? 'REDEPLOY_FUNCTION' : 'CHECK_VARIABLES',
+          instructions: [
+            '1. Verify variables are set in Supabase Dashboard → Edge Functions → linkedin-auth → Settings',
+            '2. IMPORTANT: Redeploy the edge function after setting variables:',
+            '   Run: npx supabase functions deploy linkedin-auth',
+            '3. Or redeploy from Supabase Dashboard → Edge Functions → linkedin-auth → Deploy',
+            '4. Wait 1-2 minutes for changes to take effect',
+            '5. If still failing, check the function logs in Supabase Dashboard'
           ],
-          debug_info: {
-            rawClientId: linkedinClientId,
-            rawClientSecret: linkedinClientSecret,
-            clientIdType: typeof linkedinClientId,
-            clientSecretType: typeof linkedinClientSecret,
-            validationResults: {
-              clientIdValid: isValidClientId,
-              clientSecretValid: isValidClientSecret
-            }
+          current_status: {
+            LINKEDIN_CLIENT_ID: linkedinClientId ? 'SET' : 'UNDEFINED',
+            LINKEDIN_CLIENT_SECRET: linkedinClientSecret ? 'SET' : 'UNDEFINED'
           }
         }),
         { 
