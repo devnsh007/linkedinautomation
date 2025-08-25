@@ -23,11 +23,24 @@ Deno.serve(async (req) => {
     // Get environment variables
     const linkedinClientId = Deno.env.get('LINKEDIN_CLIENT_ID');
     const linkedinClientSecret = Deno.env.get('LINKEDIN_CLIENT_SECRET');
+    
+    // These are the standard Supabase environment variables available in edge functions
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseServiceKey: !!supabaseServiceKey,
+      hasLinkedInClientId: !!linkedinClientId,
+      hasLinkedInClientSecret: !!linkedinClientSecret
+    });
 
     if (!linkedinClientId || !linkedinClientSecret) {
-      throw new Error('Missing LinkedIn credentials');
+      throw new Error(`Missing LinkedIn credentials: clientId=${!!linkedinClientId}, clientSecret=${!!linkedinClientSecret}`);
+    }
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error(`Missing Supabase credentials: url=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}`);
     }
 
     // Exchange authorization code for token
