@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       throw new Error('Missing required parameters: code or redirect_uri');
     }
 
-    // Get environment variables
+    // Get environment variables - these should match your Supabase secret names exactly
     const linkedinClientId = Deno.env.get('LINKEDIN_CLIENT_ID');
     const linkedinClientSecret = Deno.env.get('LINKEDIN_CLIENT_SECRET');
     
@@ -32,11 +32,15 @@ Deno.serve(async (req) => {
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseServiceKey: !!supabaseServiceKey,
       hasLinkedInClientId: !!linkedinClientId,
-      hasLinkedInClientSecret: !!linkedinClientSecret
+      hasLinkedInClientSecret: !!linkedinClientSecret,
+      envKeys: Object.keys(Deno.env.toObject()).filter(key => key.includes('LINKEDIN'))
     });
 
     if (!linkedinClientId || !linkedinClientSecret) {
-      throw new Error(`Missing LinkedIn credentials: clientId=${!!linkedinClientId}, clientSecret=${!!linkedinClientSecret}`);
+      const availableEnvVars = Object.keys(Deno.env.toObject()).filter(key => 
+        key.includes('LINKEDIN') || key.includes('CLIENT')
+      );
+      throw new Error(`Missing LinkedIn credentials. Available env vars: ${availableEnvVars.join(', ')}. Expected: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET`);
     }
 
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -52,6 +56,8 @@ Deno.serve(async (req) => {
       client_secret: linkedinClientSecret,
     });
 
+    console.log('Token exchange request to LinkedIn...');
+
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 
@@ -62,14 +68,19 @@ Deno.serve(async (req) => {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error(`LinkedIn token exchange failed: ${await tokenResponse.text()}`);
+      const errorText = await tokenResponse.text();
+      console.error('LinkedIn token response error:', errorText);
+      throw new Error(`LinkedIn token exchange failed: ${errorText}`);
     }
     
     const tokenData = await tokenResponse.json();
 
     if (!tokenData.access_token) {
+      console.error('No access token in response:', tokenData);
       throw new Error('No access token received from LinkedIn');
     }
+
+    console.log('Token received, fetching profile...');
 
     // Fetch LinkedIn profile using OpenID Connect
     const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
@@ -80,10 +91,13 @@ Deno.serve(async (req) => {
     });
     
     if (!profileResponse.ok) {
-      throw new Error(`Profile fetch failed: ${await profileResponse.text()}`);
+      const errorText = await profileResponse.text();
+      console.error('Profile fetch error:', errorText);
+      throw new Error(`Profile fetch failed: ${errorText}`);
     }
     
     const profileData = await profileResponse.json();
+    console.log('Profile data received:', Object.keys(profileData));
 
     // Extract user information
     const email = profileData.email || `${profileData.sub}@linkedin.temp`;
@@ -94,6 +108,8 @@ Deno.serve(async (req) => {
     // Initialize Supabase client
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+
+    console.log('Storing user data in Supabase...');
 
     // Store or update in Supabase
     const userData = {
@@ -111,8 +127,11 @@ Deno.serve(async (req) => {
       .select();
 
     if (error) {
+      console.error('Database error:', error);
       throw new Error(`Database error: ${error.message}`);
     }
+
+    console.log('Authentication successful');
 
     const responseData = {
       access_token: tokenData.access_token,
@@ -136,9 +155,11 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
+    console.error('LinkedIn auth error:', err);
     return new Response(
       JSON.stringify({ 
-        error: err instanceof Error ? err.message : 'Unknown error'
+        error: err instanceof Error ? err.message : 'Unknown error',
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 400, 
