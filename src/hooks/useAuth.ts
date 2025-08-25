@@ -28,29 +28,41 @@ export const useAuthProvider = () => {
 
   useEffect(() => {
     // Load initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const loadSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error loading session:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSession();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
-        setLoading(false);
 
-        if (session?.user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('profile_data')
-            .eq('id', session.user.id)
-            .single();
+        try {
+          if (session?.user) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('profile_data')
+              .eq('id', session.user.id)
+              .single();
 
-          if (userData?.profile_data) {
-            setLinkedInProfile(userData.profile_data);
+            if (userData?.profile_data) {
+              setLinkedInProfile(userData.profile_data);
+            }
+          } else {
+            setLinkedInProfile(null);
           }
-        } else {
-          setLinkedInProfile(null);
+        } catch (error) {
+          console.error('Error loading profile data:', error);
         }
       }
     );
