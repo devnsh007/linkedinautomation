@@ -14,21 +14,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('=== LinkedIn Auth Function Started ===');
-    console.log('Request method:', req.method);
-    console.log('Request URL:', req.url);
-    
-    const requestBody = await req.json();
-    console.log('Request body received:', { 
-      hasCode: !!requestBody.code, 
-      hasRedirectUri: !!requestBody.redirect_uri,
-      redirectUri: requestBody.redirect_uri 
-    });
-    
-    const { code, redirect_uri } = requestBody;
+    const { code, redirect_uri } = await req.json();
     
     if (!code || !redirect_uri) {
-      console.error('Missing required parameters:', { code: !!code, redirect_uri: !!redirect_uri });
       throw new Error('Missing required parameters: code or redirect_uri');
     }
 
@@ -38,51 +26,11 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Debug environment variables
-    console.log('Environment variables check:', {
-      clientId: linkedinClientId ? `${linkedinClientId.substring(0, 6)}...` : 'undefined',
-      clientSecret: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : 'undefined',
-      clientIdType: typeof linkedinClientId,
-      clientSecretType: typeof linkedinClientSecret
-    });
-
-    // Check if environment variables are missing (undefined)
     if (!linkedinClientId || !linkedinClientSecret) {
-      console.error('Environment variables are undefined');
-      console.error('Available environment variables:', Object.keys(Deno.env.toObject()).filter(key => 
-        key.startsWith('LINKEDIN_') || key.startsWith('SUPABASE_')
-      ));
-      
-      const isRedeployNeeded = !linkedinClientId && !linkedinClientSecret;
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Environment variables not found', 
-          message: `LinkedIn credentials are undefined. ${isRedeployNeeded ? 'This usually means the edge function needs to be redeployed after setting environment variables.' : ''}`,
-          action_required: isRedeployNeeded ? 'REDEPLOY_FUNCTION' : 'CHECK_VARIABLES',
-          instructions: [
-            '1. Verify variables are set in Supabase Dashboard → Edge Functions → linkedin-auth → Settings',
-            '2. IMPORTANT: Redeploy the edge function after setting variables:',
-            '   Run: npx supabase functions deploy linkedin-auth',
-            '3. Or redeploy from Supabase Dashboard → Edge Functions → linkedin-auth → Deploy',
-            '4. Wait 1-2 minutes for changes to take effect',
-            '5. If still failing, check the function logs in Supabase Dashboard'
-          ],
-          current_status: {
-            LINKEDIN_CLIENT_ID: linkedinClientId ? 'SET' : 'UNDEFINED',
-            LINKEDIN_CLIENT_SECRET: linkedinClientSecret ? 'SET' : 'UNDEFINED'
-          }
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      throw new Error('Missing LinkedIn credentials');
     }
 
-    console.log('=== Starting LinkedIn Token Exchange ===');
-    
-    // Prepare token exchange request
+    // Exchange authorization code for token
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
@@ -91,15 +39,6 @@ Deno.serve(async (req) => {
       client_secret: linkedinClientSecret,
     });
 
-    console.log('Token exchange parameters:', {
-      grant_type: 'authorization_code',
-      code: `${code.substring(0, 10)}...`,
-      redirect_uri,
-      client_id: linkedinClientId,
-      client_secret: `${linkedinClientSecret.substring(0, 10)}...`
-    });
-
-    // Exchange authorization code for token
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 
@@ -109,44 +48,17 @@ Deno.serve(async (req) => {
       body: tokenParams.toString(),
     });
 
-    console.log('LinkedIn token response status:', tokenResponse.status);
-    console.log('LinkedIn token response headers:', Object.fromEntries(tokenResponse.headers.entries()));
-
-    const tokenResponseText = await tokenResponse.text();
-    console.log('LinkedIn token response body:', tokenResponseText);
-
     if (!tokenResponse.ok) {
-      console.error('LinkedIn token exchange failed:', {
-        status: tokenResponse.status,
-        statusText: tokenResponse.statusText,
-        body: tokenResponseText
-      });
-      throw new Error(`LinkedIn token exchange failed (${tokenResponse.status}): ${tokenResponseText}`);
+      throw new Error(`LinkedIn token exchange failed: ${await tokenResponse.text()}`);
     }
     
-    let tokenData;
-    try {
-      tokenData = JSON.parse(tokenResponseText);
-    } catch (parseError) {
-      console.error('Failed to parse token response:', parseError);
-      throw new Error(`Invalid JSON response from LinkedIn: ${tokenResponseText}`);
-    }
-
-    console.log('Token data received:', {
-      hasAccessToken: !!tokenData.access_token,
-      hasRefreshToken: !!tokenData.refresh_token,
-      expiresIn: tokenData.expires_in,
-      tokenType: tokenData.token_type
-    });
+    const tokenData = await tokenResponse.json();
 
     if (!tokenData.access_token) {
-      console.error('No access token in response:', tokenData);
       throw new Error('No access token received from LinkedIn');
     }
 
-    console.log('=== Fetching LinkedIn Profile using OpenID Connect ===');
-    
-    // Use OpenID Connect userinfo endpoint instead of deprecated v2 API
+    // Fetch LinkedIn profile using OpenID Connect
     const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: { 
         'Authorization': `Bearer ${tokenData.access_token}`,
@@ -154,43 +66,17 @@ Deno.serve(async (req) => {
       },
     });
     
-    console.log('Profile response status:', profileResponse.status);
-    
-    const profileResponseText = await profileResponse.text();
-    console.log('Profile response body:', profileResponseText);
-    
     if (!profileResponse.ok) {
-      console.error('Profile fetch failed:', {
-        status: profileResponse.status,
-        body: profileResponseText
-      });
-      throw new Error(`Profile fetch failed (${profileResponse.status}): ${profileResponseText}`);
+      throw new Error(`Profile fetch failed: ${await profileResponse.text()}`);
     }
     
-    let profileData;
-    try {
-      profileData = JSON.parse(profileResponseText);
-    } catch (parseError) {
-      console.error('Failed to parse profile response:', parseError);
-      throw new Error(`Invalid JSON response from LinkedIn profile API: ${profileResponseText}`);
-    }
+    const profileData = await profileResponse.json();
 
-    console.log('Profile data received:', {
-      sub: profileData.sub,
-      name: profileData.name,
-      given_name: profileData.given_name,
-      family_name: profileData.family_name,
-      email: profileData.email,
-      email_verified: profileData.email_verified
-    });
-
-    // Extract user information from OpenID Connect response
+    // Extract user information
     const email = profileData.email || `${profileData.sub}@linkedin.temp`;
     const firstName = profileData.given_name || '';
     const lastName = profileData.family_name || '';
-    const linkedinId = profileData.sub; // This is the LinkedIn user ID
-
-    console.log('=== Storing User Data in Supabase ===');
+    const linkedinId = profileData.sub;
 
     // Initialize Supabase client
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
@@ -206,24 +92,14 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
 
-    console.log('Upserting user data:', {
-      email: userData.email,
-      linkedin_id: userData.linkedin_id,
-      hasAccessToken: !!userData.linkedin_access_token,
-      hasRefreshToken: !!userData.linkedin_refresh_token
-    });
-
     const { data, error } = await supabase
       .from('users')
       .upsert(userData, { onConflict: 'linkedin_id' })
       .select();
 
     if (error) {
-      console.error('Supabase upsert error:', error);
       throw new Error(`Database error: ${error.message}`);
     }
-
-    console.log('User data stored successfully:', { userId: data?.[0]?.id });
 
     const responseData = {
       access_token: tokenData.access_token,
@@ -238,8 +114,6 @@ Deno.serve(async (req) => {
       supabase_user: data?.[0],
     };
 
-    console.log('=== Success! Returning response ===');
-
     return new Response(
       JSON.stringify(responseData),
       { 
@@ -249,21 +123,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    console.error('=== LinkedIn Auth Error ===');
-    console.error('Error type:', err.constructor.name);
-    console.error('Error message:', err.message);
-    console.error('Error stack:', err.stack);
-    
-    const errorResponse = { 
-      error: err instanceof Error ? err.message : 'Unknown error',
-      details: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString()
-    };
-    
-    console.error('Returning error response:', errorResponse);
-    
     return new Response(
-      JSON.stringify(errorResponse),
+      JSON.stringify({ 
+        error: err instanceof Error ? err.message : 'Unknown error'
+      }),
       { 
         status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
