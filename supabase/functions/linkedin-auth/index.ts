@@ -48,9 +48,18 @@ Deno.serve(async (req) => {
     });
 
     if (!linkedinClientId || !linkedinClientSecret) {
-      const error = `Missing LinkedIn credentials: clientId=${!!linkedinClientId}, clientSecret=${!!linkedinClientSecret}`;
-      console.error(error);
-      throw new Error(error);
+      console.error('LinkedIn credentials not configured in edge function environment');
+      return new Response(
+        JSON.stringify({ 
+          error: 'LinkedIn authentication is not configured', 
+          message: 'Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variables in your Supabase project settings under Edge Functions.',
+          setup_instructions: 'Go to Supabase Dashboard → Edge Functions → Settings → Environment Variables'
+        }),
+        { 
+          status: 501, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     console.log('=== Starting LinkedIn Token Exchange ===');

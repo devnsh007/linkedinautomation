@@ -59,6 +59,10 @@ export const LinkedInCallback: React.FC = () => {
       console.log('Edge function response text:', responseText);
 
       if (!response.ok) {
+        const errorData = JSON.parse(responseText);
+        if (errorData.message && errorData.setup_instructions) {
+          throw new Error(`${errorData.message}\n\nSetup required: ${errorData.setup_instructions}`);
+        }
         throw new Error(`Token exchange failed: ${responseText}`);
       }
 
