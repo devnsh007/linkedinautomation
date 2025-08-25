@@ -43,33 +43,60 @@ Deno.serve(async (req) => {
       hasClientSecret: !!linkedinClientSecret,
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceKey: !!supabaseServiceKey,
-      clientIdValue: linkedinClientId || 'undefined',
-      clientSecretValue: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : 'undefined',
+      clientIdValue: linkedinClientId,
+      clientIdType: typeof linkedinClientId,
+      clientSecretValue: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : linkedinClientSecret,
+      clientSecretType: typeof linkedinClientSecret,
       supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'undefined'
     });
 
-    // Check for missing, empty, or "false" string values
-    const isValidClientId = linkedinClientId && linkedinClientId !== '' && linkedinClientId !== 'false' && linkedinClientId !== 'undefined';
-    const isValidClientSecret = linkedinClientSecret && linkedinClientSecret !== '' && linkedinClientSecret !== 'false' && linkedinClientSecret !== 'undefined';
+    // Check for missing, empty, or invalid string values
+    const isValidClientId = linkedinClientId && 
+                           linkedinClientId !== '' && 
+                           linkedinClientId !== 'false' && 
+                           linkedinClientId !== 'undefined' && 
+                           linkedinClientId !== 'null';
+    
+    const isValidClientSecret = linkedinClientSecret && 
+                               linkedinClientSecret !== '' && 
+                               linkedinClientSecret !== 'false' && 
+                               linkedinClientSecret !== 'undefined' && 
+                               linkedinClientSecret !== 'null';
     
     if (!isValidClientId || !isValidClientSecret) {
-      console.error('LinkedIn credentials not configured in edge function environment');
-      console.error('Client ID value:', linkedinClientId);
-      console.error('Client Secret value:', linkedinClientSecret ? `${linkedinClientSecret.substring(0, 10)}...` : 'undefined');
+      console.error('LinkedIn credentials validation failed');
+      console.error('All environment variables:', Object.fromEntries(
+        Object.entries(Deno.env.toObject()).filter(([key]) => 
+          key.startsWith('LINKEDIN_') || key.startsWith('SUPABASE_')
+        )
+      ));
+      
       return new Response(
         JSON.stringify({ 
-          error: 'LinkedIn credentials are missing or invalid', 
-          message: `Environment variables status: LINKEDIN_CLIENT_ID=${!!isValidClientId}, LINKEDIN_CLIENT_SECRET=${!!isValidClientSecret}`,
-          setup_instructions: 'Go to Supabase Dashboard → Edge Functions → Settings → Environment Variables and ensure both LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET are set with valid values (not empty or "false")',
+          error: 'LinkedIn credentials validation failed', 
+          message: `The environment variables are being read as invalid values. This usually indicates they weren't set properly in Supabase.`,
+          troubleshooting: [
+            '1. Go to Supabase Dashboard → Edge Functions → linkedin-auth → Settings',
+            '2. Click "Add Secret" for each variable',
+            '3. Set LINKEDIN_CLIENT_ID to your actual LinkedIn Client ID',
+            '4. Set LINKEDIN_CLIENT_SECRET to your actual LinkedIn Client Secret',
+            '5. Make sure to SAVE the changes',
+            '6. Redeploy the edge function if needed',
+            '7. Wait 1-2 minutes for changes to take effect'
+          ],
           debug_info: {
-            clientId: linkedinClientId || 'not_set',
-            clientIdValid: isValidClientId,
-            clientSecretSet: !!linkedinClientSecret,
-            clientSecretValid: isValidClientSecret
+            rawClientId: linkedinClientId,
+            rawClientSecret: linkedinClientSecret,
+            clientIdType: typeof linkedinClientId,
+            clientSecretType: typeof linkedinClientSecret,
+            validationResults: {
+              clientIdValid: isValidClientId,
+              clientSecretValid: isValidClientSecret
+            }
           }
         }),
         { 
-          status: 501, 
+          status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
