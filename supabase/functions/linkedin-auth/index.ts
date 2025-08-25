@@ -43,17 +43,30 @@ Deno.serve(async (req) => {
       hasClientSecret: !!linkedinClientSecret,
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceKey: !!supabaseServiceKey,
-      clientId: linkedinClientId ? `${linkedinClientId.substring(0, 6)}...` : 'undefined',
+      clientIdValue: linkedinClientId || 'undefined',
+      clientSecretValue: linkedinClientSecret ? `${linkedinClientSecret.substring(0, 6)}...` : 'undefined',
       supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'undefined'
     });
 
-    if (!linkedinClientId || !linkedinClientSecret) {
+    // Check for missing, empty, or "false" string values
+    const isValidClientId = linkedinClientId && linkedinClientId !== '' && linkedinClientId !== 'false' && linkedinClientId !== 'undefined';
+    const isValidClientSecret = linkedinClientSecret && linkedinClientSecret !== '' && linkedinClientSecret !== 'false' && linkedinClientSecret !== 'undefined';
+    
+    if (!isValidClientId || !isValidClientSecret) {
       console.error('LinkedIn credentials not configured in edge function environment');
+      console.error('Client ID value:', linkedinClientId);
+      console.error('Client Secret value:', linkedinClientSecret ? `${linkedinClientSecret.substring(0, 10)}...` : 'undefined');
       return new Response(
         JSON.stringify({ 
-          error: 'LinkedIn authentication is not configured', 
-          message: 'Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variables in your Supabase project settings under Edge Functions.',
-          setup_instructions: 'Go to Supabase Dashboard → Edge Functions → Settings → Environment Variables'
+          error: 'LinkedIn credentials are missing or invalid', 
+          message: `Environment variables status: LINKEDIN_CLIENT_ID=${!!isValidClientId}, LINKEDIN_CLIENT_SECRET=${!!isValidClientSecret}`,
+          setup_instructions: 'Go to Supabase Dashboard → Edge Functions → Settings → Environment Variables and ensure both LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET are set with valid values (not empty or "false")',
+          debug_info: {
+            clientId: linkedinClientId || 'not_set',
+            clientIdValid: isValidClientId,
+            clientSecretSet: !!linkedinClientSecret,
+            clientSecretValid: isValidClientSecret
+          }
         }),
         { 
           status: 501, 
