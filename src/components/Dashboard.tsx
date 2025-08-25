@@ -8,12 +8,16 @@ import {
   MessageSquare,
   Heart,
   Share,
-  Plus
+  Plus,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export const Dashboard: React.FC = () => {
   const { linkedInProfile, user } = useAuth();
+
+  // Check if Supabase is properly configured
+  const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   // Simple mock data that doesn't depend on database
   const stats = [
@@ -53,10 +57,35 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Supabase Configuration Warning */}
+      {!isSupabaseConfigured && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-800">Supabase Configuration Required</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                To enable full functionality, please set up your Supabase environment variables:
+              </p>
+              <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside">
+                <li><code>VITE_SUPABASE_URL</code> - Your Supabase project URL</li>
+                <li><code>VITE_SUPABASE_ANON_KEY</code> - Your Supabase anonymous key</li>
+              </ul>
+              <p className="text-sm text-yellow-700 mt-2">
+                Currently running in demo mode with mock data.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back, {displayName}! Here's your LinkedIn performance overview.</p>
+          <p className="text-gray-600 mt-1">
+            Welcome back, {displayName}! 
+            {isSupabaseConfigured ? " Here's your LinkedIn performance overview." : " Running in demo mode."}
+          </p>
         </div>
         <div className="flex items-center space-x-3">
           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
