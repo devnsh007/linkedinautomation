@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 
 export const LoginPage: React.FC = () => {
   const { signInWithLinkedIn, loading } = useAuth();
+  
+  const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const features = [
     {
@@ -89,13 +91,26 @@ export const LoginPage: React.FC = () => {
               <button
                 onClick={signInWithLinkedIn}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`w-full py-4 px-6 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isSupabaseConfigured 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-gray-400 text-white cursor-not-allowed'
+                }`}
               >
                 <Linkedin className="w-5 h-5" />
                 <span>
-                  {loading ? 'Connecting...' : 'Continue with LinkedIn'}
+                  {loading ? 'Connecting...' : 
+                   isSupabaseConfigured ? 'Continue with LinkedIn' : 'Demo Mode - Setup Required'}
                 </span>
               </button>
+              
+              {!isSupabaseConfigured && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Setup Required:</strong> Please configure your Supabase environment variables to enable authentication.
+                  </p>
+                </div>
+              )}
 
               <div className="mt-6 text-center">
                 <p className="text-sm text-gray-500">

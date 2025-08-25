@@ -33,7 +33,7 @@ export const useAuthProvider = () => {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
       } catch (error) {
-        console.error('Error loading session:', error);
+        console.warn('Supabase connection failed. Running in demo mode:', error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -62,7 +62,7 @@ export const useAuthProvider = () => {
             setLinkedInProfile(null);
           }
         } catch (error) {
-          console.error('Error loading profile data:', error);
+          console.warn('Error loading profile data (demo mode):', error);
         }
       }
     );
