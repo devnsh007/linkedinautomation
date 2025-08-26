@@ -160,10 +160,9 @@ export const LoginPage: React.FC = () => {
               
               {isSupabaseConfigured && isLinkedInConfigured && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>✅ Configuration Complete</strong> - Ready to connect with LinkedIn!
                   </p>
-                    <p className="text-sm text-green-800">
-                      <strong>✅ Configuration Complete</strong> - Ready to connect with LinkedIn!
-                    </p>
                 </div>
               )}
               
