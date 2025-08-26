@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useContent } from '../hooks/useContent';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { Navigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   Calendar, 
@@ -420,4 +421,5 @@ export const Dashboard: React.FC = () => {
         </div>
 
       </div>
+    );
 };
