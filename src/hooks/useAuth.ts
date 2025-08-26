@@ -34,9 +34,37 @@ export const useAuthProvider = () => {
     const loadSession = async () => {
       console.log('Loading initial session...');
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Session loaded:', { hasSession: !!session, user: !!session?.user });
-        setUser(session?.user ?? null);
+        // Check if Supabase is properly configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey) {
+          console.log('Supabase not configured, skipping session load');
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Supabase configured, attempting to get session...');
+        
+        // Add timeout to prevent hanging
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session load timeout')), 10000)
+        );
+
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        if (error) {
+          console.error('Session load error:', error);
+          setUser(null);
+        } else {
+          console.log('Session loaded:', { hasSession: !!session, user: !!session?.user });
+          setUser(session?.user ?? null);
+        }
       } catch (error) {
         console.error('Supabase connection failed:', error);
         setUser(null);
@@ -50,35 +78,58 @@ export const useAuthProvider = () => {
 
     // Listen for auth state changes
     console.log('Setting up auth state listener');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log('Auth state changed:', { event: _event, hasSession: !!session });
-        setUser(session?.user ?? null);
+    
+    // Only set up listener if Supabase is configured
+    let subscription: any = null;
+    
+    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      try {
+        const { data } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            console.log('Auth state changed:', { event: _event, hasSession: !!session });
+            setUser(session?.user ?? null);
+            setLoading(false);
 
-        try {
-          if (session?.user) {
-            console.log('User session found, loading profile data');
-            const { data: userData } = await supabase
-              .from('users')
-              .select('profile_data')
-              .eq('id', session.user.id)
-              .single();
+            try {
+              if (session?.user) {
+                console.log('User session found, loading profile data');
+                const { data: userData } = await supabase
+                  .from('users')
+                  .select('profile_data')
+                  .eq('id', session.user.id)
+                  .single();
 
-            if (userData?.profile_data) {
-              console.log('Profile data loaded');
-              setLinkedInProfile(userData.profile_data);
+                if (userData?.profile_data) {
+                  console.log('Profile data loaded');
+                  setLinkedInProfile(userData.profile_data);
+                } else {
+                  console.log('No profile data found');
+                }
+              } else {
+                console.log('No user session, clearing profile');
+                setLinkedInProfile(null);
+              }
+            } catch (error) {
+              console.error('Error loading profile data:', error);
             }
-          } else {
-            console.log('No user session, clearing profile');
-            setLinkedInProfile(null);
           }
-        } catch (error) {
-          console.error('Error loading profile data:', error);
-        }
+        );
+        subscription = data.subscription;
+        console.log('Auth state listener set up successfully');
+      } catch (error) {
+        console.error('Failed to set up auth listener:', error);
+        setLoading(false);
       }
-    );
+    } else {
+      console.log('Skipping auth listener setup - Supabase not configured');
+    }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+        console.log('Auth listener unsubscribed');
+      }
+    };
   }, []);
 
   const signInWithLinkedIn = () => {

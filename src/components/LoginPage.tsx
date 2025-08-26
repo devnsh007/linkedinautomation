@@ -14,10 +14,34 @@ export const LoginPage: React.FC = () => {
     return <Navigate to="/dashboard" replace />;
   }
   
-  const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const isLinkedInConfigured = import.meta.env.VITE_LINKEDIN_CLIENT_ID && import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
+  // Show loading state while authentication is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
   
-  console.log('LoginPage config:', { isSupabaseConfigured, isLinkedInConfigured });
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const linkedinClientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+  const linkedinRedirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
+  
+  const isSupabaseConfigured = supabaseUrl && supabaseKey;
+  const isLinkedInConfigured = linkedinClientId && linkedinRedirectUri;
+  
+  console.log('LoginPage config:', { 
+    isSupabaseConfigured, 
+    isLinkedInConfigured,
+    hasSupabaseUrl: !!supabaseUrl,
+    hasSupabaseKey: !!supabaseKey,
+    hasLinkedInClientId: !!linkedinClientId,
+    hasLinkedInRedirectUri: !!linkedinRedirectUri
+  });
 
   const features = [
     {

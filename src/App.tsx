@@ -70,7 +70,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Authenticating...</p>
+          <p className="text-gray-600">Loading authentication...</p>
+          <p className="text-gray-500 text-sm mt-2">
+            {import.meta.env.VITE_SUPABASE_URL ? 'Connecting to Supabase...' : 'Configuration missing'}
+          </p>
         </div>
       </div>
     );
@@ -81,6 +84,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
   
+  console.log('ProtectedRoute: User authenticated, rendering children');
   return <>{children}</>;
 };
 function App() {
