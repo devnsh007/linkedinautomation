@@ -39,34 +39,46 @@ export const useAuthProvider = () => {
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         
         if (!supabaseUrl || !supabaseKey) {
-          console.log('Supabase not configured, skipping session load');
+          console.log('Supabase not configured - missing environment variables. Running in demo mode.');
           setUser(null);
           setLoading(false);
           return;
         }
 
-        console.log('Supabase configured, attempting to get session...');
+        console.log('Supabase configured, attempting connection...');
+        console.log('Supabase URL:', supabaseUrl?.substring(0, 20) + '...');
         
-        // Add timeout to prevent hanging
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session load timeout')), 10000)
-        );
+        // Test Supabase connection with shorter timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 5000); // 5 second timeout
 
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          clearTimeout(timeoutId);
 
-        if (error) {
-          console.error('Session load error:', error);
+          if (error) {
+            console.error('Supabase auth error:', error);
+            console.log('Continuing in demo mode due to auth error');
+            setUser(null);
+          } else {
+            console.log('Session loaded successfully:', { hasSession: !!session, user: !!session?.user });
+            setUser(session?.user ?? null);
+          }
+        } catch (authError) {
+          clearTimeout(timeoutId);
+          if (authError.name === 'AbortError') {
+            console.warn('Supabase connection timeout (5s) - continuing in demo mode');
+          } else {
+            console.error('Supabase connection error:', authError);
+          }
+          console.log('App will continue in demo mode');
           setUser(null);
-        } else {
-          console.log('Session loaded:', { hasSession: !!session, user: !!session?.user });
-          setUser(session?.user ?? null);
         }
       } catch (error) {
-        console.error('Supabase connection failed:', error);
+        console.error('Failed to initialize authentication:', error);
+        console.log('Falling back to demo mode');
         setUser(null);
       } finally {
         console.log('Setting loading to false');
@@ -93,13 +105,15 @@ export const useAuthProvider = () => {
             try {
               if (session?.user) {
                 console.log('User session found, loading profile data');
-                const { data: userData } = await supabase
+                const { data: userData, error: profileError } = await supabase
                   .from('users')
                   .select('profile_data')
                   .eq('id', session.user.id)
                   .single();
 
-                if (userData?.profile_data) {
+                if (profileError) {
+                  console.warn('Could not load profile data:', profileError.message);
+                } else if (userData?.profile_data) {
                   console.log('Profile data loaded');
                   setLinkedInProfile(userData.profile_data);
                 } else {
