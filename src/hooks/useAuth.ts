@@ -1,210 +1,207 @@
-import { useState, useEffect, createContext, useContext } from 'react';
-import { supabase } from '../lib/supabase';
-import { User } from '@supabase/supabase-js';
+import React from 'react';
+import { Linkedin, Zap, BarChart3, Calendar, PenTool } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { Navigate } from 'react-router-dom';
 
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  signInWithLinkedIn: () => void;
-  signOut: () => Promise<void>;
-  linkedInProfile: any;
-  setLinkedInProfile: (profile: any) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+export const LoginPage: React.FC = () => {
+  const { signInWithLinkedIn, loading, user } = useAuth();
+  
+  console.log('LoginPage render:', { user: !!user, loading });
+  
+  // If user is already logged in, redirect to dashboard
+  if (user && !loading) {
+    console.log('User already logged in, redirecting to dashboard');
+    return <Navigate to="/dashboard" replace />;
   }
-  return context;
-};
+  
+  // Show loading state while authentication is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const linkedinClientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+  const linkedinRedirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
+  
+  const isSupabaseConfigured = supabaseUrl && supabaseKey;
+  const isLinkedInConfigured = linkedinClientId && linkedinRedirectUri;
+  
+  console.log('LoginPage config:', { 
+    isSupabaseConfigured, 
+    isLinkedInConfigured,
+    hasSupabaseUrl: !!supabaseUrl,
+    hasSupabaseKey: !!supabaseKey,
+    hasLinkedInClientId: !!linkedinClientId,
+    hasLinkedInRedirectUri: !!linkedinRedirectUri
+  });
 
-export const useAuthProvider = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [linkedInProfile, setLinkedInProfile] = useState<any>(null);
-
-  console.log('useAuthProvider hook initialized');
-
-  useEffect(() => {
-    console.log('useAuthProvider useEffect triggered');
-    // Load initial session
-    const loadSession = async () => {
-      console.log('Loading initial session...');
-      try {
-        // Check if Supabase is properly configured
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseKey) {
-          console.log('Supabase not configured - missing environment variables. Running in demo mode.');
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log('Supabase configured, attempting connection...');
-        console.log('Supabase URL:', supabaseUrl?.substring(0, 20) + '...');
-        
-        // Test Supabase connection with shorter timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          controller.abort();
-        }, 5000); // 5 second timeout
-
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          clearTimeout(timeoutId);
-
-          if (error) {
-            console.error('Supabase auth error:', error);
-            console.log('Continuing in demo mode due to auth error');
-            setUser(null);
-          } else {
-            console.log('Session loaded successfully:', { hasSession: !!session, user: !!session?.user });
-            setUser(session?.user ?? null);
-          }
-        } catch (authError) {
-          clearTimeout(timeoutId);
-          if (authError.name === 'AbortError') {
-            console.warn('Supabase connection timeout (5s) - continuing in demo mode');
-          } else {
-            console.error('Supabase connection error:', authError);
-          }
-          console.log('App will continue in demo mode');
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Failed to initialize authentication:', error);
-        console.log('Falling back to demo mode');
-        setUser(null);
-      } finally {
-        console.log('Setting loading to false');
-        setLoading(false);
-      }
-    };
-
-    loadSession();
-
-    // Listen for auth state changes
-    console.log('Setting up auth state listener');
-    
-    // Only set up listener if Supabase is configured
-    let subscription: any = null;
-    
-    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      try {
-        const { data } = supabase.auth.onAuthStateChange(
-          async (_event, session) => {
-            console.log('Auth state changed:', { event: _event, hasSession: !!session });
-            setUser(session?.user ?? null);
-            setLoading(false);
-
-            try {
-              if (session?.user) {
-                console.log('User session found, loading profile data');
-                const { data: userData, error: profileError } = await supabase
-                  .from('users')
-                  .select('profile_data')
-                  .eq('id', session.user.id)
-                  .single();
-
-                if (profileError) {
-                  console.warn('Could not load profile data:', profileError.message);
-                } else if (userData?.profile_data) {
-                  console.log('Profile data loaded');
-                  setLinkedInProfile(userData.profile_data);
-                } else {
-                  console.log('No profile data found');
-                }
-              } else {
-                console.log('No user session, clearing profile');
-                setLinkedInProfile(null);
-              }
-            } catch (error) {
-              console.error('Error loading profile data:', error);
-            }
-          }
-        );
-        subscription = data.subscription;
-        console.log('Auth state listener set up successfully');
-      } catch (error) {
-        console.error('Failed to set up auth listener:', error);
-        setLoading(false);
-      }
-    } else {
-      console.log('Skipping auth listener setup - Supabase not configured');
+  const features = [
+    {
+      icon: PenTool,
+      title: 'AI Content Generation',
+      description: 'Create engaging LinkedIn posts, articles, and carousels with AI assistance'
+    },
+    {
+      icon: Calendar,
+      title: 'Smart Scheduling',
+      description: 'Schedule posts at optimal times for maximum engagement'
+    },
+    {
+      icon: BarChart3,
+      title: 'Advanced Analytics',
+      description: 'Track performance and optimize your content strategy'
+    },
+    {
+      icon: Zap,
+      title: 'Automation',
+      description: 'Automate your LinkedIn presence while maintaining authenticity'
     }
+  ];
 
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-        console.log('Auth listener unsubscribed');
-      }
-    };
-  }, []);
-
-  const signInWithLinkedIn = () => {
-    console.log('signInWithLinkedIn called');
-    const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
-    const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
-
-    console.log('LinkedIn OAuth config:', { 
-      hasClientId: !!clientId, 
-      hasRedirectUri: !!redirectUri,
-      clientId,
-      redirectUri 
-    });
-
-    if (!clientId || !redirectUri) {
-      console.error('Missing LinkedIn OAuth configuration');
-      alert('LinkedIn authentication is not properly configured. Please check your environment variables.');
+  const handleSignIn = () => {
+    console.log('Sign in button clicked');
+    if (!isLinkedInConfigured) {
+      alert('LinkedIn OAuth is not configured. Please set VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI environment variables.');
       return;
     }
-
-    // Correct LinkedIn scopes (must be space-separated, not comma-separated)
-    // openid, profile, email: for identity
-    // w_member_social: to post, comment, react on behalf of the user
-    const scope = 'openid profile email w_member_social';
-
-    const state = crypto.randomUUID(); // for CSRF protection
-
-    // Save state for callback verification
-    sessionStorage.setItem('linkedin_oauth_state', state);
-
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope,
-      state
-    });
-
-    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
-    console.log('Redirecting to LinkedIn OAuth:', authUrl);
-
-    // Full-page redirect (avoids popup blocking)
-    window.location.href = authUrl;
+    signInWithLinkedIn();
   };
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center space-x-3 mb-6">
+              <div className="p-3 bg-blue-600 rounded-xl">
+                <Linkedin className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold text-gray-900">LinkedIn AI</h1>
+            </div>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Transform your LinkedIn presence with AI-powered content creation, 
+              smart scheduling, and advanced analytics.
+            </p>
+          </div>
 
-  const signOut = async () => {
-    console.log('Signing out user');
-    await supabase.auth.signOut();
-    setLinkedInProfile(null);
-  };
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Features */}
+            <div className="space-y-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-8">
+                Supercharge Your LinkedIn Strategy
+              </h2>
+              
+              <div className="space-y-6">
+                {features.map((feature) => {
+                  const Icon = feature.icon;
+                  return (
+                    <div key={feature.title} className="flex items-start space-x-4">
+                      <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
+                        <Icon className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          {feature.title}
+                        </h3>
+                        <p className="text-gray-600">
+                          {feature.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-  console.log('useAuthProvider returning:', { user: !!user, loading, hasProfile: !!linkedInProfile });
+            {/* Login Card */}
+            <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  Get Started Today
+                </h3>
+                <p className="text-gray-600">
+                  Connect your LinkedIn account to begin optimizing your content strategy
+                </p>
+              </div>
 
-  return {
-    user,
-    loading,
-    signInWithLinkedIn,
-    signOut,
-    linkedInProfile,
-    setLinkedInProfile,
-  };
+              {!isSupabaseConfigured && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Setup Required:</strong> Please configure your Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
+                  </p>
+                </div>
+              )}
+              
+              {!isLinkedInConfigured && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-800">
+                    <strong>LinkedIn Setup Required:</strong> Please configure VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI.
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={handleSignIn}
+                disabled={loading}
+                className={`w-full py-4 px-6 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isSupabaseConfigured && isLinkedInConfigured
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-gray-400 text-white cursor-not-allowed'
+                }`}
+              >
+                <Linkedin className="w-5 h-5" />
+                <span>
+                  {loading ? 'Connecting...' : 
+                   isSupabaseConfigured && isLinkedInConfigured ? 'Continue with LinkedIn' : 'Setup Required'}
+                </span>
+              </button>
+              
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-500">
+                  By continuing, you agree to our Terms of Service and Privacy Policy
+                </p>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-100">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">10K+</div>
+                    <div className="text-xs text-gray-500">Posts Generated</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">85%</div>
+                    <div className="text-xs text-gray-500">Engagement Boost</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-purple-600">500+</div>
+                    <div className="text-xs text-gray-500">Active Users</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="mt-16 text-center">
+            <p className="text-gray-500 mb-6">Trusted by professionals at</p>
+            <div className="flex items-center justify-center space-x-8 opacity-60">
+              <div className="text-lg font-semibold text-gray-400">Microsoft</div>
+              <div className="text-lg font-semibold text-gray-400">Google</div>
+              <div className="text-lg font-semibold text-gray-400">Amazon</div>
+              <div className="text-lg font-semibold text-gray-400">Meta</div>
+              <div className="text-lg font-semibold text-gray-400">Apple</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
-
-export { AuthContext };

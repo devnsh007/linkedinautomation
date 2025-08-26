@@ -34,13 +34,13 @@ export const LoginPage: React.FC = () => {
   const isSupabaseConfigured = supabaseUrl && supabaseKey;
   const isLinkedInConfigured = linkedinClientId && linkedinRedirectUri;
   
-  console.log('LoginPage config:', { 
+  console.log('LoginPage configuration:', { 
     isSupabaseConfigured, 
     isLinkedInConfigured,
-    hasSupabaseUrl: !!supabaseUrl,
-    hasSupabaseKey: !!supabaseKey,
-    hasLinkedInClientId: !!linkedinClientId,
-    hasLinkedInRedirectUri: !!linkedinRedirectUri
+    supabaseUrl: supabaseUrl ? 'configured' : 'missing',
+    supabaseKey: supabaseKey ? 'configured' : 'missing',
+    linkedinClientId: linkedinClientId ? 'configured' : 'missing',
+    linkedinRedirectUri: linkedinRedirectUri ? 'configured' : 'missing'
   });
 
   const features = [
@@ -134,32 +134,53 @@ export const LoginPage: React.FC = () => {
 
               {!isSupabaseConfigured && (
                 <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Setup Required:</strong> Please configure your Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
-                  </p>
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-semibold mb-2">⚠️ Supabase Configuration Missing</p>
+                    <p className="mb-2">The app will run in demo mode. To enable full functionality, add these to your .env file:</p>
+                    <code className="block bg-yellow-100 p-2 rounded text-xs">
+                      VITE_SUPABASE_URL=your_supabase_url<br/>
+                      VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+                    </code>
+                  </div>
                 </div>
               )}
               
-              {!isLinkedInConfigured && (
-                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-sm text-orange-800">
-                    <strong>LinkedIn Setup Required:</strong> Please configure VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI.
-                  </p>
+              {isSupabaseConfigured && !isLinkedInConfigured && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">
+                    <p className="font-semibold mb-2">🔧 LinkedIn OAuth Setup Required</p>
+                    <p className="mb-2">Add these LinkedIn OAuth variables to your .env file:</p>
+                    <code className="block bg-blue-100 p-2 rounded text-xs">
+                      VITE_LINKEDIN_CLIENT_ID=your_linkedin_client_id<br/>
+                      VITE_LINKEDIN_REDIRECT_URI=http://localhost:5173/auth/linkedin/callback
+                    </code>
+                  </div>
                 </div>
               )}
+              
+              {isSupabaseConfigured && isLinkedInConfigured && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  </p>
+                    <p className="text-sm text-green-800">
+                      <strong>✅ Configuration Complete</strong> - Ready to connect with LinkedIn!
+                    </p>
+                </div>
+              )}
+              
               <button
                 onClick={handleSignIn}
                 disabled={loading}
-                className={`w-full py-4 px-6 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isSupabaseConfigured && isLinkedInConfigured
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                className={`w-full py-4 px-6 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center space-x-3 ${
+                  loading ? 'opacity-50 cursor-not-allowed' :
+                  isLinkedInConfigured
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:-translate-y-0.5' 
                     : 'bg-gray-400 text-white cursor-not-allowed'
                 }`}
               >
                 <Linkedin className="w-5 h-5" />
                 <span>
                   {loading ? 'Connecting...' : 
-                   isSupabaseConfigured && isLinkedInConfigured ? 'Continue with LinkedIn' : 'Setup Required'}
+                   isLinkedInConfigured ? 'Continue with LinkedIn' : 'Setup Required'}
                 </span>
               </button>
               
