@@ -24,30 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('useAuthProvider useEffect triggered');
     
-    // Check if Supabase is configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Supabase not configured - running in demo mode');
-      setLoading(false);
-      return;
-    }
-
-    console.log('Loading initial session...');
+    console.log('Initializing authentication...');
     
     // Load initial session with timeout
     const loadSession = async () => {
       try {
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session load timeout')), 3000)
-        );
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        console.log('Getting session from Supabase...');
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) throw error;
 
@@ -58,7 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('No session found');
         }
       } catch (error) {
-        console.warn('Supabase connection failed:', error);
+        console.error('Authentication initialization failed:', error);
+        throw error;
       } finally {
         setLoading(false);
         console.log('Setting loading to false');

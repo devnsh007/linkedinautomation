@@ -77,6 +77,7 @@ export const useContent = () => {
         .from('content_posts')
         .insert([{
           ...postData,
+          hashtags: postData.hashtags || [],
           status: postData.status || 'draft',
           user_id: user.id
         }])
@@ -86,6 +87,7 @@ export const useContent = () => {
       if (error) throw error;
       
       setPosts(prev => [data, ...prev]);
+      console.log('Post created successfully:', data.id);
       return data;
     } catch (error) {
       console.error('Error creating post:', error);

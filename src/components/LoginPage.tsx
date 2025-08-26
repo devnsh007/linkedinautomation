@@ -2,6 +2,7 @@ import React from 'react';
 import { Linkedin, Zap, BarChart3, Calendar, PenTool } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { signInWithLinkedIn, loading, user } = useAuth();
@@ -31,8 +32,8 @@ export const LoginPage: React.FC = () => {
   const linkedinClientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
   const linkedinRedirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
   
-  const isSupabaseConfigured = supabaseUrl && supabaseKey;
-  const isLinkedInConfigured = linkedinClientId && linkedinRedirectUri;
+  const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+  const isLinkedInConfigured = Boolean(linkedinClientId && linkedinRedirectUri);
   
   console.log('LoginPage configuration:', { 
     isSupabaseConfigured, 
@@ -68,14 +69,53 @@ export const LoginPage: React.FC = () => {
 
   const handleSignIn = () => {
     console.log('Sign in button clicked');
+    if (!isSupabaseConfigured) {
+      alert('Supabase is not configured. Please set up your .env file with Supabase credentials.');
+      return;
+    }
     if (!isLinkedInConfigured) {
-      alert('LinkedIn OAuth is not configured. Please set VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI environment variables.');
+      alert('LinkedIn OAuth is not configured. Please set up LinkedIn OAuth credentials.');
       return;
     }
     signInWithLinkedIn();
   };
+
+  // Show setup instructions if not configured
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg">
+          <div className="text-center mb-6">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Setup Required</h1>
+            <p className="text-gray-600">Configure your environment to get started</p>
+          </div>
+          
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 className="font-semibold text-red-800 mb-3">Missing Configuration</h3>
+            <div className="space-y-2 text-sm">
+              <p className="text-red-700">Create a <code>.env</code> file with:</p>
+              <div className="bg-red-100 p-3 rounded font-mono text-xs">
+                VITE_SUPABASE_URL=your_supabase_url<br/>
+                VITE_SUPABASE_ANON_KEY=your_anon_key<br/>
+                VITE_LINKEDIN_CLIENT_ID=your_linkedin_id<br/>
+                VITE_LINKEDIN_REDIRECT_URI=http://localhost:5173/auth/linkedin/callback
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Check Configuration
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-6xl mx-auto">
           {/* Header */}

@@ -120,12 +120,22 @@ export const ContentGenerator: React.FC = () => {
     if (!generatedData || !user) return;
     
     try {
-      // You can implement saving to Supabase here
       console.log('Saving as draft...', generatedData);
-      alert('Draft saved successfully!');
+      
+      await createPost({
+        title: generatedData.title,
+        content: generatedData.content,
+        content_type: contentType,
+        tone: tone,
+        status: 'draft',
+        hashtags: generatedData.hashtags,
+        estimated_engagement: generatedData.estimatedEngagement
+      });
+      
+      alert('Draft saved successfully! Check your dashboard to view it.');
     } catch (error) {
       console.error('Error saving draft:', error);
-      alert('Failed to save draft');
+      alert(`Failed to save draft: ${error.message}`);
     }
   };
 

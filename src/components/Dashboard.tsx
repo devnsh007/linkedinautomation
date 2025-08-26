@@ -30,11 +30,6 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if we have real data or need to show setup message
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const isSupabaseConfigured = supabaseUrl && supabaseKey;
-
   // Calculate stats from real data
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -139,39 +134,9 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Environment warning
-  if (!isSupabaseConfigured || !user) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-lg font-semibold text-blue-800">
-                {!user ? 'Authentication Required' : 'Setup Required'}
-              </h3>
-              <p className="text-blue-700 mt-2">
-                {!user 
-                  ? 'Please log in with LinkedIn to access your dashboard.'
-                  : 'Configure your environment variables to connect to your Supabase database:'
-                }
-              </p>
-              {!user ? null : (
-                <>
-                  <ul className="list-disc list-inside text-blue-700 mt-2 space-y-1">
-                    <li><code className="bg-blue-100 px-2 py-1 rounded">VITE_SUPABASE_URL</code></li>
-                    <li><code className="bg-blue-100 px-2 py-1 rounded">VITE_SUPABASE_ANON_KEY</code></li>
-                  </ul>
-                  <p className="text-blue-700 mt-2">
-                    Once configured, your dashboard will show real LinkedIn data.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  // Redirect if no user
+  if (!user) {
+    return <Navigate to="/login" replace />;
   }
 
   // Error state
