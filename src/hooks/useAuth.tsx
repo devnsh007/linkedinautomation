@@ -131,6 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const scope = 'openid profile email w_member_social';
     const state = Math.random().toString(36).substring(2, 15);
     
+    // Store state in sessionStorage for CSRF protection
+    sessionStorage.setItem('linkedin_oauth_state', state);
+    
     const linkedinUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
     
     window.location.href = linkedinUrl;
