@@ -12,9 +12,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from '../hooks/useAuth';
+import { useContent } from '../hooks/useContent';
 
 export const ContentGenerator: React.FC = () => {
   const { user } = useAuth();
+  const { createPost } = useContent();
   const [contentType, setContentType] = useState<
     "post" | "article" | "carousel"
   >("post");

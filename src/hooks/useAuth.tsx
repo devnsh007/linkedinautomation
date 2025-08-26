@@ -120,22 +120,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithLinkedIn = () => {
+    console.log('Starting LinkedIn OAuth flow');
     const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
     const redirectUri = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
     
     if (!clientId || !redirectUri) {
-      console.error('LinkedIn OAuth not configured');
+      console.error('LinkedIn OAuth not configured', { clientId: !!clientId, redirectUri: !!redirectUri });
+      alert('LinkedIn OAuth is not configured. Please set up your environment variables.');
       return;
     }
 
     const scope = 'openid profile email w_member_social';
     const state = Math.random().toString(36).substring(2, 15);
     
+    console.log('Generated OAuth state:', state);
     // Store state in sessionStorage for CSRF protection
     sessionStorage.setItem('linkedin_oauth_state', state);
     
     const linkedinUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
     
+    console.log('Redirecting to LinkedIn:', linkedinUrl);
     window.location.href = linkedinUrl;
   };
 
@@ -149,11 +153,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Add function to update LinkedIn profile
+  const setLinkedInProfile = (profile: any) => {
+    console.log('Setting LinkedIn profile:', profile);
+    setUser(prev => prev ? { ...prev, ...profile } : null);
+  };
+
   const value = {
     user,
     loading,
     signInWithLinkedIn,
-    signOut
+    signOut,
+    setLinkedInProfile
   };
 
   console.log('useAuthProvider returning:', { user: !!user, loading });

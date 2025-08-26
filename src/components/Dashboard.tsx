@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { useContent } from '../hooks/useContent';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { 
   TrendingUp, 
   Calendar, 
@@ -20,246 +23,51 @@ import {
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { posts, loading: postsLoading, error: postsError } = useContent();
+  const { analytics, loading: analyticsLoading } = useAnalytics('30d');
+  
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    totalPosts: 0,
-    publishedPosts: 0,
-    scheduledPosts: 0,
-    draftPosts: 0,
-    totalImpressions: 0,
-    totalEngagements: 0,
-    averageEngagementRate: 0,
-    thisWeekPosts: 0
-  });
-  const [recentPosts, setRecentPosts] = useState<any[]>([]);
-  const [upcomingPosts, setUpcomingPosts] = useState<any[]>([]);
 
-  // Check environment variables
+  // Check if we have real data or need to show setup message
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const isSupabaseConfigured = supabaseUrl && supabaseKey;
 
-  console.log('Dashboard: Component rendered', {
-    supabaseConfigured: isSupabaseConfigured,
-    supabaseUrl: !!supabaseUrl,
-    supabaseKey: !!supabaseKey,
-  });
+  // Calculate stats from real data
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  useEffect(() => {
-    console.log('Dashboard: useEffect triggered');
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    console.log('Dashboard: Starting to load data...');
-    setLoading(true);
-    setError(null);
-
-    try {
-      // If Supabase is not configured, use demo data
-      if (!isSupabaseConfigured) {
-        console.log('Dashboard: Supabase not configured, using demo data');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading
-        setDemoData();
-        setLoading(false);
-        return;
-      }
-
-      console.log('Dashboard: Attempting to connect to Supabase...');
-      
-      // Dynamic import to handle potential module issues
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      console.log('Dashboard: Supabase client created');
-
-      // Try to fetch user session first
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('Dashboard: Session check', { hasSession: !!session, sessionError });
-
-      if (sessionError) {
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-
-      if (!session?.user) {
-        console.log('Dashboard: No authenticated user, showing login prompt');
-        setError('Please log in to view your dashboard data.');
-        setLoading(false);
-        return;
-      }
-
-      const userId = session.user.id;
-      console.log('Dashboard: Authenticated user found:', userId);
-
-      // Fetch posts data
-      console.log('Dashboard: Fetching posts...');
-      const { data: posts, error: postsError } = await supabase
-        .from('content_posts')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (postsError) {
-        console.error('Dashboard: Posts fetch error:', postsError);
-        throw new Error(`Failed to fetch posts: ${postsError.message}`);
-      }
-
-      console.log('Dashboard: Posts fetched:', posts?.length || 0);
-
-      // Fetch analytics data
-      console.log('Dashboard: Fetching analytics...');
-      const { data: analytics, error: analyticsError } = await supabase
-        .from('analytics_metrics')
-        .select('*')
-        .eq('user_id', userId)
-        .order('recorded_at', { ascending: false });
-
-      if (analyticsError) {
-        console.warn('Dashboard: Analytics fetch error (non-critical):', analyticsError);
-      }
-
-      console.log('Dashboard: Analytics fetched:', analytics?.length || 0);
-
-      // Process the data
-      const postsArray = posts || [];
-      const analyticsArray = analytics || [];
-
-      // Calculate stats
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-      const calculatedStats = {
-        totalPosts: postsArray.length,
-        publishedPosts: postsArray.filter(p => p.status === 'published').length,
-        scheduledPosts: postsArray.filter(p => p.status === 'scheduled').length,
-        draftPosts: postsArray.filter(p => p.status === 'draft').length,
-        totalImpressions: analyticsArray.reduce((sum, a) => sum + (a.impressions || 0), 0),
-        totalEngagements: analyticsArray.reduce((sum, a) => 
-          sum + (a.likes || 0) + (a.comments || 0) + (a.shares || 0), 0
-        ),
-        averageEngagementRate: analyticsArray.length > 0 
-          ? analyticsArray.reduce((sum, a) => sum + (a.engagement_rate || 0), 0) / analyticsArray.length
-          : 0,
-        thisWeekPosts: postsArray.filter(p => 
-          new Date(p.created_at) >= oneWeekAgo
-        ).length
-      };
-
-      // Get recent posts with analytics
-      const recentPostsWithAnalytics = postsArray.slice(0, 5).map(post => {
-        const postAnalytics = analyticsArray.find(a => a.post_id === post.id);
-        return {
-          ...post,
-          analytics: postAnalytics || null
-        };
-      });
-
-      // Get upcoming scheduled posts
-      const now = new Date();
-      const upcoming = postsArray
-        .filter(p => 
-          p.status === 'scheduled' && 
-          p.scheduled_at && 
-          new Date(p.scheduled_at) > now
-        )
-        .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
-        .slice(0, 5);
-
-      // Update state
-      setStats(calculatedStats);
-      setRecentPosts(recentPostsWithAnalytics);
-      setUpcomingPosts(upcoming);
-
-      console.log('Dashboard: Data loaded successfully', {
-        stats: calculatedStats,
-        recentPosts: recentPostsWithAnalytics.length,
-        upcomingPosts: upcoming.length
-      });
-
-    } catch (err: any) {
-      console.error('Dashboard: Load error:', err);
-      setError(err.message || 'Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
+  const stats = {
+    totalPosts: posts.length,
+    publishedPosts: posts.filter(p => p.status === 'published').length,
+    scheduledPosts: posts.filter(p => p.status === 'scheduled').length,
+    draftPosts: posts.filter(p => p.status === 'draft').length,
+    totalImpressions: analytics?.totalImpressions || 0,
+    totalEngagements: analytics?.totalEngagements || 0,
+    averageEngagementRate: analytics?.averageEngagementRate || 0,
+    thisWeekPosts: posts.filter(p => 
+      new Date(p.created_at) >= oneWeekAgo
+    ).length
   };
 
-  const setDemoData = () => {
-    console.log('Dashboard: Setting demo data');
-    setStats({
-      totalPosts: 24,
-      publishedPosts: 18,
-      scheduledPosts: 4,
-      draftPosts: 2,
-      totalImpressions: 45600,
-      totalEngagements: 1280,
-      averageEngagementRate: 6.8,
-      thisWeekPosts: 3
-    });
+  // Get recent posts (last 5)
+  const recentPosts = posts.slice(0, 5);
 
-    setRecentPosts([
-      {
-        id: '1',
-        title: 'AI Marketing Trends for 2025',
-        content: 'The future of marketing is here...',
-        status: 'published',
-        content_type: 'article',
-        created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        published_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        analytics: {
-          impressions: 2400,
-          likes: 45,
-          comments: 12,
-          shares: 8,
-          engagement_rate: 7.2
-        }
-      },
-      {
-        id: '2',
-        title: 'Leadership Lessons from Remote Work',
-        content: 'What I learned managing a remote team...',
-        status: 'published',
-        content_type: 'post',
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        published_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        analytics: {
-          impressions: 1800,
-          likes: 32,
-          comments: 8,
-          shares: 5,
-          engagement_rate: 5.8
-        }
-      },
-      {
-        id: '3',
-        title: 'Digital Transformation Strategy',
-        content: 'How we transformed our business...',
-        status: 'scheduled',
-        content_type: 'carousel',
-        created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-        scheduled_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        analytics: null
-      }
-    ]);
+  // Get upcoming scheduled posts
+  const now = new Date();
+  const upcomingPosts = posts
+    .filter(p => 
+      p.status === 'scheduled' && 
+      p.scheduled_at && 
+      new Date(p.scheduled_at) > now
+    )
+    .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
+    .slice(0, 5);
 
-    setUpcomingPosts([
-      {
-        id: '4',
-        title: 'Weekly Industry Update',
-        scheduled_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-        content_type: 'post',
-        status: 'scheduled'
-      },
-      {
-        id: '5',
-        title: 'Team Building Best Practices',
-        scheduled_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        content_type: 'article',
-        status: 'scheduled'
-      }
-    ]);
-  };
+  const isLoading = postsLoading || analyticsLoading;
+  const hasError = postsError || error;
 
   // Utility functions
   const getStatusIcon = (status: string) => {
@@ -311,17 +119,20 @@ export const Dashboard: React.FC = () => {
     return num.toString();
   };
 
-  console.log('Dashboard: Rendering component', { loading, error, isSupabaseConfigured });
+  const loadDashboardData = () => {
+    // This will be handled by the hooks automatically
+    window.location.reload();
+  };
 
   // Loading state
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Loading Dashboard...</p>
           <p className="text-gray-500 text-sm mt-2">
-            {isSupabaseConfigured ? 'Fetching your data...' : 'Loading demo data...'}
+            {user ? 'Fetching your LinkedIn data...' : 'Loading...'}
           </p>
         </div>
       </div>
@@ -329,34 +140,42 @@ export const Dashboard: React.FC = () => {
   }
 
   // Environment warning
-  if (!isSupabaseConfigured) {
+  if (!isSupabaseConfigured || !user) {
     return (
       <div className="space-y-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-start space-x-3">
-            <AlertCircle className="w-6 h-6 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <AlertCircle className="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0" />
             <div>
-              <h3 className="text-lg font-semibold text-yellow-800">Demo Mode - Setup Required</h3>
-              <p className="text-yellow-700 mt-2">
-                Configure your environment variables to connect to your Supabase database:
+              <h3 className="text-lg font-semibold text-blue-800">
+                {!user ? 'Authentication Required' : 'Setup Required'}
+              </h3>
+              <p className="text-blue-700 mt-2">
+                {!user 
+                  ? 'Please log in with LinkedIn to access your dashboard.'
+                  : 'Configure your environment variables to connect to your Supabase database:'
+                }
               </p>
-              <ul className="list-disc list-inside text-yellow-700 mt-2 space-y-1">
-                <li><code className="bg-yellow-100 px-2 py-1 rounded">VITE_SUPABASE_URL</code></li>
-                <li><code className="bg-yellow-100 px-2 py-1 rounded">VITE_SUPABASE_ANON_KEY</code></li>
-              </ul>
-              <p className="text-yellow-700 mt-2">
-                Below is demo data showing how your dashboard will look.
-              </p>
+              {!user ? null : (
+                <>
+                  <ul className="list-disc list-inside text-blue-700 mt-2 space-y-1">
+                    <li><code className="bg-blue-100 px-2 py-1 rounded">VITE_SUPABASE_URL</code></li>
+                    <li><code className="bg-blue-100 px-2 py-1 rounded">VITE_SUPABASE_ANON_KEY</code></li>
+                  </ul>
+                  <p className="text-blue-700 mt-2">
+                    Once configured, your dashboard will show real LinkedIn data.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
-        {renderDashboard()}
       </div>
     );
   }
 
   // Error state
-  if (error) {
+  if (hasError) {
     return (
       <div className="space-y-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -364,7 +183,7 @@ export const Dashboard: React.FC = () => {
             <AlertCircle className="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-red-800">Dashboard Error</h3>
-              <p className="text-red-700 mt-1">{error}</p>
+              <p className="text-red-700 mt-1">{hasError}</p>
               <div className="mt-4 flex items-center space-x-3">
                 <button 
                   onClick={loadDashboardData}
@@ -386,9 +205,7 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  return renderDashboard();
-
-  function renderDashboard() {
+  // Main dashboard render
     const statsCards = [
       { 
         label: 'Total Posts', 
@@ -437,10 +254,7 @@ export const Dashboard: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
             <p className="text-gray-600 mt-1">
-              {isSupabaseConfigured ? 
-                "Welcome back! Here's your LinkedIn performance overview." : 
-                "Demo Dashboard - showing sample data"
-              }
+              Welcome back! Here's your LinkedIn performance overview.
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -518,24 +332,24 @@ export const Dashboard: React.FC = () => {
                         : `Created ${formatDate(post.created_at)}`
                       }
                     </p>
-                    
-                    {post.analytics && (
+
+                    {post.analytics_data && Object.keys(post.analytics_data).length > 0 && (
                       <div className="flex items-center space-x-4 text-sm text-gray-500 pt-3 border-t border-gray-100">
                         <div className="flex items-center space-x-1">
                           <Eye className="w-4 h-4" />
-                          <span>{formatNumber(post.analytics.impressions || 0)}</span>
+                          <span>{formatNumber(post.analytics_data.impressions || 0)}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Heart className="w-4 h-4" />
-                          <span>{post.analytics.likes || 0}</span>
+                          <span>{post.analytics_data.likes || 0}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <MessageSquare className="w-4 h-4" />
-                          <span>{post.analytics.comments || 0}</span>
+                          <span>{post.analytics_data.comments || 0}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Share className="w-4 h-4" />
-                          <span>{post.analytics.shares || 0}</span>
+                          <span>{post.analytics_data.shares || 0}</span>
                         </div>
                       </div>
                     )}
@@ -640,42 +454,5 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Debug Info (Development Only) */}
-        {import.meta.env.DEV && (
-          <div className="bg-gray-100 p-4 rounded-lg text-sm">
-            <h3 className="font-semibold mb-2">Debug Information:</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <p><strong>Supabase URL:</strong> {supabaseUrl ? '✅' : '❌'}</p>
-                <p><strong>Supabase Key:</strong> {supabaseKey ? '✅' : '❌'}</p>
-                <p><strong>Environment:</strong> {import.meta.env.NODE_ENV}</p>
-                <p><strong>Loading:</strong> {loading.toString()}</p>
-                <p><strong>Error:</strong> {error || 'None'}</p>
-              </div>
-              <div>
-                <p><strong>Total Posts:</strong> {stats.totalPosts}</p>
-                <p><strong>Recent Posts:</strong> {recentPosts.length}</p>
-                <p><strong>Upcoming Posts:</strong> {upcomingPosts.length}</p>
-                <p><strong>Total Impressions:</strong> {stats.totalImpressions}</p>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center space-x-2">
-              <button 
-                onClick={loadDashboardData}
-                className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-              >
-                Reload Data
-              </button>
-              <button 
-                onClick={() => console.log('Dashboard State:', { stats, recentPosts, upcomingPosts, error, loading })}
-                className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700 transition-colors"
-              >
-                Log State
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-    );
-  }
 };
