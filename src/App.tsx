@@ -15,6 +15,7 @@ const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
   const [activeView, setActiveView] = useState<'dashboard' | 'profile' | 'generator' | 'calendar' | 'analytics'>('dashboard');
 
+  console.log('AppContent render:', { user: !!user, loading });
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -27,8 +28,11 @@ const AppContent: React.FC = () => {
   }
 
   if (!user) {
+    console.log('No user found, redirecting to login');
     return <Navigate to="/login" replace />;
   }
+
+  console.log('User authenticated, showing dashboard');
   const renderActiveView = () => {
     switch (activeView) {
       case 'dashboard':
@@ -56,15 +60,54 @@ const AppContent: React.FC = () => {
   );
 };
 
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  console.log('ProtectedRoute:', { user: !!user, loading });
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    console.log('ProtectedRoute: No user, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+};
 function App() {
+  console.log('App component rendered');
+  
   return (
     <AuthProvider>
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/linkedin/callback" element={<LinkedInCallback />} />
-          <Route path="/dashboard" element={<AppContent />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <AppContent />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute>
+                <Navigate to="/dashboard" replace />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </Router>
     </AuthProvider>

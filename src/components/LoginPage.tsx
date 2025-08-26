@@ -1,11 +1,23 @@
 import React from 'react';
 import { Linkedin, Zap, BarChart3, Calendar, PenTool } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { Navigate } from 'react-router-dom';
 
 export const LoginPage: React.FC = () => {
-  const { signInWithLinkedIn, loading } = useAuth();
+  const { signInWithLinkedIn, loading, user } = useAuth();
+  
+  console.log('LoginPage render:', { user: !!user, loading });
+  
+  // If user is already logged in, redirect to dashboard
+  if (user && !loading) {
+    console.log('User already logged in, redirecting to dashboard');
+    return <Navigate to="/dashboard" replace />;
+  }
   
   const isSupabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const isLinkedInConfigured = import.meta.env.VITE_LINKEDIN_CLIENT_ID && import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
+  
+  console.log('LoginPage config:', { isSupabaseConfigured, isLinkedInConfigured });
 
   const features = [
     {
@@ -30,6 +42,14 @@ export const LoginPage: React.FC = () => {
     }
   ];
 
+  const handleSignIn = () => {
+    console.log('Sign in button clicked');
+    if (!isLinkedInConfigured) {
+      alert('LinkedIn OAuth is not configured. Please set VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI environment variables.');
+      return;
+    }
+    signInWithLinkedIn();
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container mx-auto px-4 py-12">
@@ -88,11 +108,26 @@ export const LoginPage: React.FC = () => {
                 </p>
               </div>
 
+              {!isSupabaseConfigured && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Setup Required:</strong> Please configure your Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
+                  </p>
+                </div>
+              )}
+              
+              {!isLinkedInConfigured && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-800">
+                    <strong>LinkedIn Setup Required:</strong> Please configure VITE_LINKEDIN_CLIENT_ID and VITE_LINKEDIN_REDIRECT_URI.
+                  </p>
+                </div>
+              )}
               <button
-                onClick={signInWithLinkedIn}
+                onClick={handleSignIn}
                 disabled={loading}
                 className={`w-full py-4 px-6 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center space-x-3 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isSupabaseConfigured 
+                  isSupabaseConfigured && isLinkedInConfigured
                     ? 'bg-blue-600 text-white hover:bg-blue-700' 
                     : 'bg-gray-400 text-white cursor-not-allowed'
                 }`}
@@ -100,17 +135,10 @@ export const LoginPage: React.FC = () => {
                 <Linkedin className="w-5 h-5" />
                 <span>
                   {loading ? 'Connecting...' : 
-                   isSupabaseConfigured ? 'Continue with LinkedIn' : 'Demo Mode - Setup Required'}
+                   isSupabaseConfigured && isLinkedInConfigured ? 'Continue with LinkedIn' : 'Setup Required'}
                 </span>
               </button>
               
-              {!isSupabaseConfigured && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Setup Required:</strong> Please configure your Supabase environment variables to enable authentication.
-                  </p>
-                </div>
-              )}
 
               <div className="mt-6 text-center">
                 <p className="text-sm text-gray-500">
